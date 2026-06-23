@@ -1,0 +1,458 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>OrderKuota Dashboard</title>
+
+<style>
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    background:#0f172a;
+    color:white;
+    font-family:Segoe UI,Arial,sans-serif;
+}
+
+.container{
+    max-width:1100px;
+    margin:auto;
+    padding:25px;
+}
+
+.card{
+    background:#1e293b;
+    border-radius:15px;
+    padding:20px;
+    margin-bottom:20px;
+    box-shadow:0 4px 20px rgba(0,0,0,.3);
+}
+
+h1{
+    margin-top:0;
+}
+
+h2{
+    margin-top:0;
+    color:#38bdf8;
+}
+
+label{
+    display:block;
+    margin-bottom:5px;
+    font-weight:600;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:#334155;
+    color:white;
+    margin-bottom:15px;
+}
+
+button{
+    padding:12px 18px;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+.btn-primary{
+    background:#06b6d4;
+    color:white;
+}
+
+.btn-success{
+    background:#22c55e;
+    color:white;
+}
+
+.btn-warning{
+    background:#f59e0b;
+    color:white;
+}
+
+.btn-danger{
+    background:#ef4444;
+    color:white;
+}
+
+.row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+
+.profile-box{
+    line-height:2;
+}
+
+.token-row{
+    display:flex;
+    gap:10px;
+}
+
+.token-row input{
+    margin-bottom:0;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th{
+    background:#0f172a;
+    color:#38bdf8;
+}
+
+th,td{
+    border:1px solid #334155;
+    padding:10px;
+    text-align:left;
+}
+
+.qr-box{
+    text-align:center;
+    margin-top:20px;
+}
+
+.qr-box img{
+    max-width:300px;
+    width:100%;
+    border-radius:15px;
+}
+
+pre{
+    background:#0f172a;
+    padding:15px;
+    border-radius:10px;
+    overflow:auto;
+}
+
+@media(max-width:800px){
+
+    .row{
+        grid-template-columns:1fr;
+    }
+
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<h1>📱 ORDERKUOTA DASHBOARD</h1>
+
+</div>
+
+<div class="row">
+
+<div class="card">
+
+<h2>🔐 Login OrderKuota</h2>
+
+<label>Username</label>
+<input id="username">
+
+<label>Password</label>
+<input id="password" type="password">
+
+<button class="btn-primary" onclick="getOtp()">
+KIRIM OTP
+</button>
+
+<br><br>
+
+<label>OTP</label>
+<input id="otp">
+
+<button class="btn-success" onclick="getToken()">
+AMBIL TOKEN
+</button>
+
+<br><br>
+
+<label>Token</label>
+
+<div class="token-row">
+
+<input id="token">
+
+<button class="btn-warning" onclick="copyToken()">
+COPY
+</button>
+
+<button class="btn-success" onclick="saveToken()">
+SIMPAN
+</button>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>👤 Akun Aktif</h2>
+
+<div class="profile-box">
+
+<div>
+Username :
+<b id="activeUser">-</b>
+</div>
+
+<div>
+Saldo QRIS :
+<b id="saldoQris">Rp 0</b>
+</div>
+
+</div>
+
+<br>
+
+<button class="btn-primary" onclick="refreshProfile()">
+REFRESH PROFILE
+</button>
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>📄 Mutasi Terbaru</h2>
+
+<table>
+
+<thead>
+<tr>
+<th>Waktu</th>
+<th>Nominal</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+
+<tbody id="mutasiBody">
+
+<tr>
+<td colspan="3">
+Belum ada data
+</td>
+</tr>
+
+</tbody>
+
+</table>
+
+</div>
+
+<div class="card">
+
+<h2>💳 Test QRIS</h2>
+
+<label>Nominal</label>
+<input id="qrisAmount" value="10000">
+
+<button class="btn-success" onclick="generateQRIS()">
+GENERATE QRIS
+</button>
+
+<div class="qr-box">
+
+<img id="qrImage" style="display:none;">
+
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>📦 Response Debug</h2>
+
+<pre id="result">
+Ready...
+</pre>
+
+</div>
+
+</div>
+
+<script>
+
+function showResult(data){
+    document.getElementById("result")
+        .textContent =
+        JSON.stringify(data,null,2);
+}
+
+async function getOtp(){
+
+    const username =
+        document.getElementById("username").value;
+
+    const password =
+        document.getElementById("password").value;
+
+    const res =
+        await fetch(
+            `/orderkuota/getotp?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+        );
+
+    const json =
+        await res.json();
+
+    showResult(json);
+}
+
+async function getToken(){
+
+    const username =
+        document.getElementById("username").value;
+
+    const otp =
+        document.getElementById("otp").value;
+
+    const res =
+        await fetch(
+            `/orderkuota/gettoken?username=${encodeURIComponent(username)}&otp=${encodeURIComponent(otp)}`
+        );
+
+    const json =
+        await res.json();
+
+    showResult(json);
+
+    const token =
+        json?.results?.auth_token ||
+        json?.auth_token ||
+        "";
+
+    document.getElementById("token").value =
+        token;
+}
+
+function copyToken(){
+
+    const token =
+        document.getElementById("token").value;
+
+    navigator.clipboard.writeText(token);
+
+    alert("Token berhasil dicopy");
+}
+
+async function saveToken(){
+
+    const username =
+        document.getElementById("username").value;
+
+    const token =
+        document.getElementById("token").value;
+
+    const res =
+        await fetch("/orderkuota/save-token",{
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body:JSON.stringify({
+                username,
+                token
+            })
+        });
+
+    const json =
+        await res.json();
+
+    showResult(json);
+}
+
+async function refreshProfile(){
+
+    try {
+
+        const res =
+            await fetch("/orderkuota/profile");
+
+        const json =
+            await res.json();
+
+        showResult(json);
+
+        document.getElementById(
+            "activeUser"
+        ).textContent =
+            json?.account?.results?.username ||
+            "-";
+
+        document.getElementById(
+            "saldoQris"
+        ).textContent =
+            "Rp " +
+            (
+                json?.account?.results?.qris_balance_str ||
+                "0"
+            );
+
+    } catch(err){
+
+        console.error(err);
+
+    }
+
+}
+
+async function loadMutasi(){
+
+    const res =
+        await fetch("/orderkuota/mutasi");
+
+    const data =
+        await res.json();
+
+    const tbody =
+        document.getElementById("mutasiBody");
+
+    tbody.innerHTML = "";
+
+    data.slice(0,20).forEach(item=>{
+
+        tbody.innerHTML += `
+        <tr>
+            <td>${item.tanggal || "-"}</td>
+            <td>${item.kredit || "-"}</td>
+            <td>${item.keterangan || "-"}</td>
+        </tr>
+        `;
+    });
+}
+
+async function generateQRIS(){
+
+    alert(
+        "Endpoint generate QRIS admin belum dibuat."
+    );
+}
+
+loadMutasi();
+
+</script>
+
+</body>
+</html>

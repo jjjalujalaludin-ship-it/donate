@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+  <title>Leaderboard Overlay</title>
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+    body {
+  margin: 0;
+  background: transparent;
+  font-family: 'Poppins', sans-serif;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+    .box {
+      width: 340px;
+      padding: 15px;
+      border-radius: 14px;
+      background: #1e1e1e;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    }
+
+    .title {
+      text-align: center;
+      font-weight: 700;
+      font-size: 16px;
+      color: #facc15;
+      margin-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 6px;
+    }
+
+    .item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-top: 8px;
+      background: #2a2a2a;
+      transition: all 0.3s ease;
+    }
+
+    .left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: white;
+      font-weight: 500;
+    }
+
+    .rank {
+      font-weight: 700;
+      color: #facc15;
+    }
+
+    .name {
+      color: #ffffff;
+    }
+
+    .amount {
+      font-weight: 700;
+      color: #22c55e;
+    }
+
+    /* 🥇 TOP 1 STYLE */
+    .top1 {
+      background: linear-gradient(90deg, #2563eb, #1d4ed8);
+      color: white;
+    }
+
+    .top1 .rank {
+      color: #facc15;
+    }
+
+    .top1 .amount {
+      color: #ffffff;
+    }
+
+    .crown {
+      font-size: 16px;
+    }
+
+    /* 🔥 animasi naik */
+    .updated {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(34,197,94,0.7);
+    }
+
+  </style>
+</head>
+
+<body>
+
+<div class="box">
+  <div class="title">🏆 Leaderboard Sultan</div>
+  <div id="list"></div>
+</div>
+
+<script>
+const socket = io();
+
+let currentMap = {};
+
+function format(num) {
+  return Number(num).toLocaleString("id-ID");
+}
+
+async function load() {
+  const res = await fetch("/leaderboard");
+  const data = await res.json();
+
+  const container = document.getElementById("list");
+
+  const firstPos = {};
+  Object.values(currentMap).forEach(el => {
+    firstPos[el.dataset.name] = el.getBoundingClientRect();
+  });
+
+  const newMap = {};
+
+  data.forEach((d, i) => {
+
+    let el = currentMap[d.name];
+
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "item";
+      el.dataset.name = d.name;
+    }
+
+    const crown = i === 0 ? `<span class="crown">👑</span>` : "";
+
+    el.innerHTML = `
+      <div class="left">
+        ${crown}
+        <span class="rank">#${i+1}</span>
+        <span class="name">${d.name}</span>
+      </div>
+      <div class="amount">Rp ${format(d.total)}</div>
+    `;
+
+    el.classList.remove("top1","updated");
+
+    if (i === 0) el.classList.add("top1");
+
+    container.appendChild(el);
+    newMap[d.name] = el;
+  });
+
+  // 🔥 FLIP animation
+  data.forEach(d => {
+    const el = newMap[d.name];
+
+    const first = firstPos[d.name];
+    const last = el.getBoundingClientRect();
+
+    if (first) {
+      const deltaY = first.top - last.top;
+
+      if (deltaY !== 0) {
+        el.style.transform = `translateY(${deltaY}px)`;
+
+        requestAnimationFrame(() => {
+          el.style.transform = "";
+          el.classList.add("updated");
+
+          setTimeout(() => el.classList.remove("updated"), 600);
+        });
+      }
+    }
+  });
+
+  currentMap = newMap;
+}
+
+// realtime
+socket.on("dashboard_update", load);
+
+load();
+</script>
+
+</body>
+</html>

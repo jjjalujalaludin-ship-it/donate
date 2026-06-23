@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OrderKuota Login</title>
+
+<style>
+body{
+    font-family: Arial, sans-serif;
+    background:#111;
+    color:white;
+    max-width:700px;
+    margin:auto;
+    padding:20px;
+}
+
+.card{
+    background:#1e1e1e;
+    padding:20px;
+    border-radius:12px;
+    margin-bottom:20px;
+}
+
+input{
+    width:100%;
+    padding:10px;
+    margin-top:5px;
+    margin-bottom:10px;
+    border:none;
+    border-radius:8px;
+}
+
+button{
+    padding:10px 15px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+.btn{
+    background:#00b894;
+    color:white;
+}
+
+pre{
+    background:#000;
+    padding:15px;
+    border-radius:10px;
+    overflow:auto;
+    white-space:pre-wrap;
+}
+</style>
+
+</head>
+<body>
+
+<h1>🔐 OrderKuota Tools</h1>
+
+<div class="card">
+    <h2>Get OTP</h2>
+
+    <label>Username</label>
+    <input type="text" id="otp_username">
+
+    <label>Password</label>
+    <input type="password" id="otp_password">
+
+    <button class="btn" onclick="getOtp()">
+        Kirim OTP
+    </button>
+</div>
+
+<div class="card">
+    <h2>Get Token</h2>
+
+    <label>Username</label>
+    <input type="text" id="token_username">
+
+    <label>Kode OTP</label>
+    <input type="text" id="token_otp">
+
+    <button class="btn" onclick="getToken()">
+        Ambil Token
+    </button>
+</div>
+
+<div class="card">
+    <h2>Result</h2>
+
+    <pre id="result">Belum ada data</pre>
+</div>
+
+<script>
+
+async function getOtp(){
+
+    const username =
+        document.getElementById("otp_username").value;
+
+    const password =
+        document.getElementById("otp_password").value;
+
+    try{
+
+        const res =
+            await fetch(
+                `/orderkuota/getotp?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+            );
+
+        const json =
+            await res.json();
+
+        document.getElementById("result").textContent =
+            JSON.stringify(json,null,2);
+
+    }catch(err){
+
+        document.getElementById("result").textContent =
+            err.message;
+
+    }
+
+}
+
+async function getToken(){
+
+    const username =
+        document.getElementById("token_username").value;
+
+    const otp =
+        document.getElementById("token_otp").value;
+
+    try{
+
+        const res =
+            await fetch(
+                `/orderkuota/gettoken?username=${encodeURIComponent(username)}&otp=${encodeURIComponent(otp)}`
+            );
+
+        const json =
+            await res.json();
+
+        document.getElementById("result").textContent =
+            JSON.stringify(json,null,2);
+
+        // otomatis copy token kalau ada
+        const token =
+            json?.results?.auth_token ||
+            json?.auth_token;
+
+        if(token){
+
+            navigator.clipboard.writeText(token);
+
+            alert(
+                "✅ Token berhasil dicopy ke clipboard"
+            );
+
+        }
+
+    }catch(err){
+
+        document.getElementById("result").textContent =
+            err.message;
+
+    }
+
+}
+</script>
+
+</body>
+</html>

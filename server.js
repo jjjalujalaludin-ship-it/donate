@@ -1,0 +1,702 @@
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
+
+const ENV_FILE = path.join(__dirname, ".env");
+
+let ORDERKUOTA_USERNAME =
+  process.env.ORDERKUOTA_USERNAME || "";
+
+let ORDERKUOTA_TOKEN =
+  process.env.ORDERKUOTA_TOKEN || "";
+
+function saveOrderKuotaConfig(username, token) {
+
+  let env = "";
+
+  if (fs.existsSync(ENV_FILE)) {
+    env = fs.readFileSync(ENV_FILE, "utf8");
+  }
+
+  if (/^ORDERKUOTA_USERNAME=.*/m.test(env)) {
+    env = env.replace(
+      /^ORDERKUOTA_USERNAME=.*/m,
+      `ORDERKUOTA_USERNAME=${username}`
+    );
+  } else {
+    env += `\nORDERKUOTA_USERNAME=${username}`;
+  }
+
+  if (/^ORDERKUOTA_TOKEN=.*/m.test(env)) {
+    env = env.replace(
+      /^ORDERKUOTA_TOKEN=.*/m,
+      `ORDERKUOTA_TOKEN=${token}`
+    );
+  } else {
+    env += `\nORDERKUOTA_TOKEN=${token}`;
+  }
+
+  fs.writeFileSync(ENV_FILE, env);
+
+  ORDERKUOTA_USERNAME = username;
+  ORDERKUOTA_TOKEN = token;
+}
+const DB_FILE = path.join(__dirname, "donations.json");
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static("public"));
+
+const {
+  OrderKuota,
+  createQRIS: createDynamicQRIS
+} = require("./lib/orderkuota-client");
+
+
+// ===============================
+// 🔥 HUB CONFIG (FIX NON BLOCKING)
+// ===============================
+const HUB_URL = "https://server.elianainteractive.com/api/notify";
+const HUB_TOKEN = "EI115256152";
+
+function sendToHub(d) {
+  try {
+
+    // 🔥 ANTI DOUBLE TRIGGER
+    if (d.already_sent_to_hub) return;
+
+    const payload = {
+      time: new Date().toISOString().slice(0, 19).replace("T", " "),
+      trx: String(d.id),
+      title: "Donasi Masuk",
+      user: d.name || "SESEORANG",
+      pesan: d.message || "",
+      amount: parseInt(d.amount_original)
+    };
+
+    if (!payload.trx || payload.amount <= 0) return;
+
+    fetch(HUB_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Hub-Token": HUB_TOKEN
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(() => {
+      console.log("📡 HUB SENT:", payload.trx);
+
+      // 🔥 SET FLAG
+      d.already_sent_to_hub = true;
+    })
+    .catch(err => {
+      console.log("❌ HUB ERROR:", err.message);
+    });
+
+  } catch (err) {
+    console.log("❌ HUB CRASH:", err.message);
+  }
+}
+
+/* ========================= */
+/* 🔥 STORAGE */
+
+let donations = [];
+let pendingDonations = [];
+
+if (fs.existsSync(DB_FILE)) {
+  try {
+    donations = JSON.parse(fs.readFileSync(DB_FILE));
+    console.log("📂 Data loaded:", donations.length);
+  } catch {}
+}
+
+function saveDonations() {
+  fs.writeFileSync(DB_FILE, JSON.stringify(donations, null, 2));
+}
+
+/* ========================= */
+
+function generateUniqueAmount(base) {
+  let unique;
+  let amount;
+  do {
+    unique = Math.floor(Math.random() * 90) + 10; // 🔥 2 digit (10–99)
+    amount = Number(base) + unique;
+  } while (donations.some(d => d.amount_unique === amount));
+  return amount;
+}
+
+/* ========================= */
+
+async function createQRIS(amount) {
+
+  const ok =
+  new OrderKuota(
+    ORDERKUOTA_USERNAME,
+    ORDERKUOTA_TOKEN
+  );
+
+  const qrisData =
+    await ok.generateQr(amount);
+
+  if (!qrisData?.qris_data) {
+    throw new Error(
+      "QRIS generation failed"
+    );
+  }
+
+  const result =
+    await createDynamicQRIS(
+      amount,
+      qrisData.qris_data
+    );
+
+  return {
+    image:
+      result.imageqris.url
+  };
+}
+
+async function getMutasi() {
+
+  try {
+
+    const ok =
+  new OrderKuota(
+    ORDERKUOTA_USERNAME,
+    ORDERKUOTA_TOKEN
+  );
+
+    const result =
+      await ok.getTransactionQris();
+
+    return (
+      result?.qris_history?.results ||
+      []
+    );
+
+  } catch (err) {
+
+    console.log(
+      "❌ error mutasi:",
+      err.message
+    );
+
+    return [];
+  }
+}
+
+/* ========================= */
+/* 🔥 AUTO LOOP */
+
+let checking = false;
+
+async function checkMutasiLoop() {
+  if (checking) return;
+  checking = true;
+
+  const interval = setInterval(async () => {
+
+    if (pendingDonations.length === 0) {
+      clearInterval(interval);
+      checking = false;
+      return;
+    }
+
+    const mutasi = await getMutasi();
+
+    for (let trx of mutasi) {
+      if (trx.status !== "IN") continue;
+
+      const amount = Number(String(trx.kredit).replace(/\./g, ""));
+
+      for (let d of [...pendingDonations]) {
+
+        if (Date.now() - d.created_at > 2 * 60 * 1000) {
+          console.log("⏰ expired:", d.id);
+          pendingDonations = pendingDonations.filter(x => x.id !== d.id);
+          continue;
+        }
+
+        if (amount === Number(d.amount_unique)) {
+
+          d.status = "paid";
+
+          if (d.amount_original < 10000) d.media_url = "";
+          d.video_duration = Math.floor(d.amount_original / 200);
+
+          const now = new Date();
+
+          d.tanggal = now.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "long",
+            year: "numeric"
+          });
+
+          d.jam = now.toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+
+          d.created_at = Date.now();
+
+          donations.push({
+            id: d.id,
+            name: d.name,
+            message: d.message,
+            media_url: d.media_url,
+            amount_original: d.amount_original,
+            amount_unique: d.amount_unique,
+            video_duration: d.video_duration,
+            tanggal: d.tanggal,
+            jam: d.jam,
+            created_at: d.created_at
+          });
+
+          if (donations.length > 1000) {
+            donations = donations.slice(-1000);
+          }
+
+          saveDonations();
+
+          pendingDonations = pendingDonations.filter(x => x.id !== d.id);
+
+          console.log("💰 PAID:", d.amount_unique);
+
+          setTimeout(() => sendToHub(d), 0);
+
+          if (d.media_url) {
+  io.emit("donation_media", d);
+} else {
+  io.emit("donation", d);
+}
+          io.emit("dashboard_update");
+        }
+      }
+    }
+
+  }, 5000);
+}
+
+/* ========================= */
+/* 🔥 DONATE */
+
+app.post("/donate", async (req, res) => {
+  const { name, amount, message, media_url } = req.body;
+
+  const amount_unique = generateUniqueAmount(amount);
+  const qris = await createQRIS(amount_unique);
+
+  const donation = {
+    id: Date.now(),
+    name,
+    message,
+    media_url,
+    amount_original: Number(amount),
+    amount_unique,
+    qr: qris.image,
+    status: "pending",
+    created_at: Date.now()
+  };
+
+  pendingDonations.push(donation);
+  checkMutasiLoop();
+
+  res.json(donation);
+});
+
+// =========================
+// 🧪 TEST DONATE (FIXED)
+// =========================
+
+app.post("/test-donate", (req, res) => {
+  const { name, amount, message, media_url } = req.body; // 🔥 TAMBAH INI
+
+  const d = {
+    id: Date.now(),
+    name: name || "TEST USER",
+    message: message || "Test donation 🚀",
+    media_url: media_url || "", // 🔥 FIX DI SINI
+    amount_original: Number(amount || 10000),
+    amount_unique: Number(amount || 10000),
+    video_duration: Math.floor((amount || 10000) / 200),
+    tanggal: new Date().toLocaleDateString("id-ID"),
+    jam: new Date().toLocaleTimeString("id-ID"),
+    created_at: Date.now()
+  };
+
+  donations.push(d);
+  saveDonations();
+
+  console.log("🧪 TEST DONATION:", d.amount_original);
+
+  setTimeout(() => sendToHub(d), 0);
+
+  if (d.media_url) {
+    io.emit("donation_media", d);
+  } else {
+    io.emit("donation", d);
+  }
+
+  io.emit("dashboard_update");
+
+  res.json({ success: true, data: d });
+});
+
+/* ========================= */
+
+app.get("/donation/:id", (req, res) => {
+  const d =
+    pendingDonations.find(x => x.id == req.params.id) ||
+    donations.find(x => x.id == req.params.id);
+
+  res.json(d || {});
+});
+
+/* ========================= */
+
+app.get("/check/:id", (req, res) => {
+  const id = req.params.id;
+
+  const pending = pendingDonations.find(x => x.id == id);
+  if (pending) return res.json({ status: "pending" });
+
+  const paid = donations.find(x => x.id == id);
+  if (paid) return res.json({ status: "paid" });
+
+  return res.json({ status: "expired" });
+});
+
+/* ========================= */
+
+app.get("/donations", (req, res) => {
+  res.json(donations.reverse());
+});
+
+// 🔥 DASHBOARD DATA
+app.get("/dashboard", (req, res) => {
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const monthly = donations.filter(d => {
+    const date = new Date(d.created_at);
+    return date.getMonth() === currentMonth &&
+           date.getFullYear() === currentYear;
+  });
+
+  const total = monthly.reduce((sum, d) => {
+    return sum + Number(d.amount_original || 0);
+  }, 0);
+
+  const leaderboardMap = {};
+
+  monthly.forEach(d => {
+    if (!leaderboardMap[d.name]) {
+      leaderboardMap[d.name] = 0;
+    }
+    leaderboardMap[d.name] += Number(d.amount_original || 0);
+  });
+
+  const leaderboard = Object.entries(leaderboardMap)
+    .map(([name, total]) => ({ name, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+
+  res.json({
+    total,
+    leaderboard
+  });
+});
+
+// 🔥 DASHBOARD DETAIL
+app.get("/dashboard-detail", (req, res) => {
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const monthly = donations.filter(d => {
+    const date = new Date(d.created_at);
+    return date.getMonth() === currentMonth &&
+           date.getFullYear() === currentYear;
+  });
+
+  const total = monthly.reduce((sum, d) => sum + Number(d.amount_original || 0), 0);
+
+  const map = {};
+  monthly.forEach(d => {
+    map[d.name] = (map[d.name] || 0) + Number(d.amount_original || 0);
+  });
+
+  const leaderboard = Object.entries(map)
+    .map(([name, total]) => ({ name, total }))
+    .sort((a,b)=>b.total-a.total)
+    .slice(0,10);
+
+  const dailyMap = {};
+  monthly.forEach(d => {
+    const day = new Date(d.created_at).getDate();
+    dailyMap[day] = (dailyMap[day] || 0) + Number(d.amount_original || 0);
+  });
+
+  const chart = Object.entries(dailyMap)
+    .map(([day, total]) => ({ day, total }))
+    .sort((a,b)=>a.day-b.day);
+
+  res.json({ total, leaderboard, chart });
+});
+
+/* ========================= */
+
+app.post("/replay/:id", (req, res) => {
+  const d = donations.find(x => x.id == req.params.id);
+
+  if (!d) return res.status(404).json({ error: "not found" });
+
+  if (d.media_url) {
+  io.emit("donation_media", d);
+} else {
+  io.emit("donation", d);
+}
+  res.json({ success: true });
+});
+
+/* ========================= */
+
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log("🚀 Server jalan di port", PORT);
+});
+
+io.on("connection", (socket) => {
+  socket.on("donation", (data) => {
+    io.emit("donation", data);
+  });
+});
+
+/* ========================== */
+
+app.get("/leaderboard", (req, res) => {
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const monthly = donations.filter(d => {
+    const date = new Date(d.created_at);
+    return date.getMonth() === currentMonth &&
+           date.getFullYear() === currentYear;
+  });
+
+  const map = {};
+  monthly.forEach(d => {
+    map[d.name] = (map[d.name] || 0) + Number(d.amount_original || 0);
+  });
+
+  const leaderboard = Object.entries(map)
+    .map(([name, total]) => ({ name, total }))
+    .sort((a,b)=>b.total-a.total)
+    .slice(0,10);
+
+  res.json(leaderboard);
+});
+
+app.get("/orderkuota/getotp", async (req, res) => {
+
+  const { username, password } = req.query;
+
+  try {
+
+    const ok = new OrderKuota();
+
+    const result =
+      await ok.loginRequest(
+        username,
+        password
+      );
+
+    res.json(result);
+
+  } catch (err) {
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+app.get("/orderkuota/gettoken", async (req, res) => {
+
+  const { username, otp } = req.query;
+
+  try {
+
+    const ok = new OrderKuota();
+
+    const result =
+      await ok.getAuthToken(
+        username,
+        otp
+      );
+
+    res.json(result);
+
+  } catch (err) {
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+
+
+app.post("/orderkuota/save-token", (req, res) => {
+
+  const { username, token } = req.body;
+
+  if (!username || !token) {
+    return res.status(400).json({
+      success: false,
+      message: "username/token kosong"
+    });
+  }
+
+  saveOrderKuotaConfig(
+    username,
+    token
+  );
+
+  res.json({
+    success: true,
+    username,
+    token,
+    message: "Username & Token tersimpan ke .env"
+  });
+
+});
+
+app.get("/orderkuota/config", (req, res) => {
+
+  res.json({
+    username: ORDERKUOTA_USERNAME,
+    token: ORDERKUOTA_TOKEN
+      ? "********"
+      : ""
+  });
+
+});
+
+app.get("/orderkuota/profile", async (req, res) => {
+
+  try {
+
+    const ok = new OrderKuota(
+      ORDERKUOTA_USERNAME,
+      ORDERKUOTA_TOKEN
+    );
+
+    const result =
+      await ok.getTransactionQris();
+
+    res.json(result);
+
+  } catch(err) {
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
+
+});
+
+app.get("/orderkuota/mutasi", async (req, res) => {
+
+  try {
+
+    const ok = new OrderKuota(
+      ORDERKUOTA_USERNAME,
+      ORDERKUOTA_TOKEN
+    );
+
+    const result =
+      await ok.getTransactionQris();
+
+    res.json(
+      result.qris_history?.results || []
+    );
+
+  } catch(err) {
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
+
+});
+
+app.post("/orderkuota/createpayment", async (req, res) => {
+
+  try {
+
+    const { amount } = req.body;
+
+    const ok = new OrderKuota(
+      ORDERKUOTA_USERNAME,
+      ORDERKUOTA_TOKEN
+    );
+
+    const qrData =
+      await ok.generateQr(amount);
+
+    if (!qrData?.qris_data) {
+      return res.status(400).json({
+        success: false,
+        message: "QRIS gagal dibuat"
+      });
+    }
+
+    const result =
+      await createDynamicQRIS(
+        amount,
+        qrData.qris_data
+      );
+
+    res.json({
+      success: true,
+      data: result
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
