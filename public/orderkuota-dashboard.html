@@ -1,245 +1,89 @@
 
 <!DOCTYPE html>
+
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>OrderKuota Dashboard</title>
-
 <style>
-
-*{
-    box-sizing:border-box;
-}
-
-body{
-    margin:0;
-    background:#0f172a;
-    color:white;
-    font-family:Segoe UI,Arial,sans-serif;
-}
-
-.container{
-    max-width:1100px;
-    margin:auto;
-    padding:25px;
-}
-
-.card{
-    background:#1e293b;
-    border-radius:15px;
-    padding:20px;
-    margin-bottom:20px;
-    box-shadow:0 4px 20px rgba(0,0,0,.3);
-}
-
-h1{
-    margin-top:0;
-}
-
-h2{
-    margin-top:0;
-    color:#38bdf8;
-}
-
-label{
-    display:block;
-    margin-bottom:5px;
-    font-weight:600;
-}
-
-input{
-    width:100%;
-    padding:12px;
-    border:none;
-    border-radius:10px;
-    background:#334155;
-    color:white;
-    margin-bottom:15px;
-}
-
-button{
-    padding:12px 18px;
-    border:none;
-    border-radius:10px;
-    cursor:pointer;
-    font-weight:bold;
-}
-
-.btn-primary{
-    background:#06b6d4;
-    color:white;
-}
-
-.btn-success{
-    background:#22c55e;
-    color:white;
-}
-
-.btn-warning{
-    background:#f59e0b;
-    color:white;
-}
-
-.btn-danger{
-    background:#ef4444;
-    color:white;
-}
-
-.row{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:20px;
-}
-
-.profile-box{
-    line-height:2;
-}
-
-.token-row{
-    display:flex;
-    gap:10px;
-}
-
-.token-row input{
-    margin-bottom:0;
-}
-
-table{
-    width:100%;
-    border-collapse:collapse;
-}
-
-th{
-    background:#0f172a;
-    color:#38bdf8;
-}
-
-th,td{
-    border:1px solid #334155;
-    padding:10px;
-    text-align:left;
-}
-
-.qr-box{
-    text-align:center;
-    margin-top:20px;
-}
-
-.qr-box img{
-    max-width:300px;
-    width:100%;
-    border-radius:15px;
-}
-
-pre{
-    background:#0f172a;
-    padding:15px;
-    border-radius:10px;
-    overflow:auto;
-}
-
-@media(max-width:800px){
-
-    .row{
-        grid-template-columns:1fr;
-    }
-
-}
-
+*{box-sizing:border-box}
+body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:radial-gradient(circle at top,#2563eb,#0f172a 35%,#020617);color:#fff}
+body:before,body:after{content:"";position:fixed;width:420px;height:420px;border-radius:50%;filter:blur(90px);opacity:.22;z-index:-1;animation:f 10s ease-in-out infinite}
+body:before{background:#22c55e;left:-120px;top:-100px}
+body:after{background:#06b6d4;right:-120px;bottom:-100px;animation-delay:-5s}
+@keyframes f{50%{transform:translateY(-30px) scale(1.08)}}
+.container{max-width:1200px;margin:auto;padding:30px}
+.card{background:rgba(255,255,255,.08);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:22px;margin-bottom:20px;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+h1,h2{margin-top:0} h2{color:#7dd3fc}
+input{width:100%;padding:13px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.06);color:#fff}
+input:focus{outline:none;border-color:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.15)}
+button{padding:12px 18px;border:none;border-radius:14px;font-weight:700;cursor:pointer;transition:.2s}
+button:hover{transform:translateY(-2px)}
+.btn-primary{background:#06b6d4;color:#fff}.btn-success{background:#22c55e;color:#fff}.btn-warning{background:#f59e0b;color:#fff}.btn-danger{background:#ef4444;color:#fff}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+table{width:100%;border-collapse:collapse;border-radius:14px;overflow:hidden}
+th{background:#0b1220;color:#7dd3fc}
+th,td{border:1px solid rgba(255,255,255,.08);padding:12px}
+pre{background:#08111f;border-radius:14px;padding:15px}
+.qr-box img{max-width:300px;border-radius:18px}
+@media(max-width:800px){.row{grid-template-columns:1fr}}
 </style>
 </head>
-
 <body>
-
 <div class="container">
-
 <div class="card">
-
-<h1>📱 ORDERKUOTA DASHBOARD</h1>
-
+<h1>🚀 OrderKuota Dashboard</h1>
 </div>
-
 <div class="row">
-
 <div class="card">
-
 <h2>🔐 Login OrderKuota</h2>
-
 <label>Username</label>
-<input id="username">
-
+<input id="username"/>
 <label>Password</label>
-<input id="password" type="password">
-
+<input id="password" type="password"/>
 <button class="btn-primary" onclick="getOtp()">
 KIRIM OTP
 </button>
-
-<br><br>
-
+<br/><br/>
 <label>OTP</label>
-<input id="otp">
-
+<input id="otp"/>
 <button class="btn-success" onclick="getToken()">
 AMBIL TOKEN
 </button>
-
-<br><br>
-
+<br/><br/>
 <label>Token</label>
-
 <div class="token-row">
-
-<input id="token">
-
+<input id="token"/>
 <button class="btn-warning" onclick="copyToken()">
 COPY
 </button>
-
 <button class="btn-success" onclick="saveToken()">
 SIMPAN
 </button>
-
 </div>
-
 </div>
-
 <div class="card">
-
 <h2>👤 Akun Aktif</h2>
-
 <div class="profile-box">
-
 <div>
 Username :
 <b id="activeUser">-</b>
 </div>
-
 <div>
 Saldo QRIS :
 <b id="saldoQris">Rp 0</b>
 </div>
-
 </div>
-
-<br>
-
+<br/>
 <button class="btn-primary" onclick="refreshProfile()">
 REFRESH PROFILE
 </button>
-
 </div>
-
 </div>
-
 <div class="card">
-
 <h2>📄 Mutasi Terbaru</h2>
-
 <table>
-
 <thead>
 <tr>
 <th>Waktu</th>
@@ -247,52 +91,33 @@ REFRESH PROFILE
 <th>Keterangan</th>
 </tr>
 </thead>
-
 <tbody id="mutasiBody">
-
 <tr>
 <td colspan="3">
 Belum ada data
 </td>
 </tr>
-
 </tbody>
-
 </table>
-
 </div>
-
 <div class="card">
-
 <h2>💳 Test QRIS</h2>
-
 <label>Nominal</label>
-<input id="qrisAmount" value="10000">
-
+<input id="qrisAmount" value="10000"/>
 <button class="btn-success" onclick="generateQRIS()">
 GENERATE QRIS
 </button>
-
 <div class="qr-box">
-
-<img id="qrImage" style="display:none;">
-
+<img id="qrImage" style="display:none;"/>
 </div>
-
 </div>
-
 <div class="card">
-
 <h2>📦 Response Debug</h2>
-
 <pre id="result">
 Ready...
 </pre>
-
 </div>
-
 </div>
-
 <script>
 
 function showResult(data){
@@ -453,6 +278,5 @@ async function generateQRIS(){
 loadMutasi();
 
 </script>
-
 </body>
 </html>
