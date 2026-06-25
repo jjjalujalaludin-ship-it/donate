@@ -128,15 +128,26 @@ wss.on("connection", (ws, req) => {
 
       if(msg.type === "hello"){
 
-        ws.lastTrx =
-          msg.lastTrx || null;
+    ws.lastTrx =
+      msg.lastTrx || null;
 
-        console.log(
-          "👋 HELLO",
-          ws.lastTrx
-        );
+    console.log(
+      "👋 HELLO",
+      ws.lastTrx
+    );
 
-      }
+}
+
+if(msg.type === "watch_payment"){
+
+    ws.paymentId = String(msg.id);
+
+    console.log(
+      "👀 WATCH PAYMENT:",
+      ws.paymentId
+    );
+
+}
 
     } catch {}
 
@@ -418,6 +429,26 @@ async function checkMutasiLoop() {
           }
 
           saveDonations();
+		  
+		  // ===============================
+// PAYMENT PAID WS
+// ===============================
+
+for(const ws of wsClients){
+
+    if(
+        ws.readyState === WebSocket.OPEN &&
+        String(ws.paymentId) === String(d.id)
+    ){
+
+        ws.send(JSON.stringify({
+            type: "payment_paid",
+            id: d.id
+        }));
+
+    }
+
+}
 
           pendingDonations = pendingDonations.filter(x => x.id !== d.id);
 
@@ -990,6 +1021,8 @@ if (donations.length > 1000) {
 }
 
 saveDonations();
+
+
 
 const sent = broadcastEvent(payload);
 

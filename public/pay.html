@@ -3,70 +3,289 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pembayaran</title>
+<title>Eliana Interactive - Pembayaran</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Segoe UI,sans-serif;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:24px;color:#fff;background:radial-gradient(circle at top,#3b82f6,#111827 35%,#020617)}
-body:before,body:after{content:"";position:fixed;width:420px;height:420px;border-radius:50%;filter:blur(90px);opacity:.25;animation:f 10s ease-in-out infinite}
-body:before{background:#22c55e;left:-100px;top:-120px}
-body:after{background:#06b6d4;right:-120px;bottom:-120px;animation-delay:-5s}
-@keyframes f{50%{transform:translateY(-30px) scale(1.08)}}
-.card{width:100%;max-width:430px;background:rgba(255,255,255,.08);backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:34px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.45)}
-.badge{display:inline-block;padding:8px 15px;border-radius:999px;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.35);margin-bottom:18px}
-h1{font-size:30px}
-.sub{color:#cbd5e1;margin:10px 0 20px}
-.qr{display:inline-block;background:#fff;padding:16px;border-radius:20px;box-shadow:0 10px 25px rgba(0,0,0,.25)}
-.qr img{width:250px;display:block}
-.amount{margin:22px 0 8px;font-size:30px;font-weight:700;color:#4ade80}
-.timerbox{display:flex;justify-content:center;gap:10px;margin-bottom:18px}
-.timer{background:rgba(250,204,21,.12);border:1px solid rgba(250,204,21,.3);padding:10px 18px;border-radius:14px;color:#fde047;font-size:22px;font-weight:700}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,sans-serif;background:linear-gradient(135deg,#0b1220,#2e1065,#1d4ed8);background-size:300% 300%;animation:bg 14s ease infinite;color:#fff;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:24px}
+@keyframes bg{0%{background-position:0 50%}50%{background-position:100% 50%}100%{background-position:0 50%}}
+.card{max-width:560px;width:100%;background:rgba(255,255,255,.08);backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:30px;text-align:center;box-shadow:0 25px 70px rgba(0,0,0,.45)}
+.avatar{width:90px;height:90px;border-radius:50%;margin:auto;background:linear-gradient(135deg,#9333ea,#22c55e);display:flex;align-items:center;justify-content:center;font-size:42px;box-shadow:0 0 30px rgba(147,51,234,.55)}
+.badge{display:inline-block;margin:16px 0;padding:8px 18px;border-radius:999px;background:#22c55e22;border:1px solid #22c55e55}
+.sub{color:#cbd5e1}
+.qr{display:inline-block;background:#fff;padding:18px;border-radius:22px;margin:22px auto;transition:.25s}
+.qr:hover{transform:scale(1.04)}
+.qr img{width:270px;display:block}
+.amount{font-size:34px;font-weight:800;color:#4ade80;margin:16px 0}
+.status{margin:16px auto;padding:14px;border-radius:16px;background:rgba(255,255,255,.06)}
+.timer{font-size:30px;font-weight:800;color:#fde047}
 .danger{color:#ef4444!important}
-.btn{width:100%;padding:16px;border:none;border-radius:16px;font-size:16px;font-weight:700;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;cursor:pointer;transition:.25s}
-.btn:hover{transform:translateY(-2px)}
+.progress{height:10px;background:#1e293b;border-radius:999px;overflow:hidden;margin-top:12px}
+.bar{height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#84cc16);transition:width 1s linear}
+.btn{width:100%;margin-top:20px;padding:15px;border:none;border-radius:15px;background:linear-gradient(135deg,#22c55e,#16a34a);font-size:17px;font-weight:700;color:#fff;cursor:pointer}
+.footer{margin-top:18px;color:#cbd5e1;font-size:13px;line-height:1.6}
 .success{color:#4ade80}
 </style>
 </head>
 <body>
 <div class="card" id="card">
-<div class="badge">📱 QRIS Payment</div>
-<h1>Scan & Bayar</h1>
-<div class="sub">Scan QRIS di bawah menggunakan aplikasi e-wallet atau mobile banking.</div>
+<div class="avatar">💜</div>
+<div class="badge">ELIANA INTERACTIVE</div>
+<h1>Scan QRIS</h1>
+<p class="sub">Scan QRIS menggunakan E‑Wallet atau Mobile Banking.<br>Nominal sudah otomatis sesuai tagihan.</p>
 <div class="qr"><img id="qr"></div>
-<div class="amount" id="amount"></div>
-<div class="timerbox"><div class="timer" id="timer">03:00</div></div>
-<button class="btn" id="checkBtn" onclick="checkPayment()">🔍 Cek Pembayaran</button>
+<div class="amount" id="amount">Rp 0</div>
+<div class="status">
+<div id="statusText">🟡 Menunggu Pembayaran...</div>
+<div class="timer" id="timer">03:00</div>
+<div class="progress"><div class="bar" id="bar"></div></div>
+</div>
+<button class="btn" id="checkBtn" onclick="checkPayment()">🔍 CEK PEMBAYARAN</button>
+<div class="footer">🤖 Sistem mengecek pembayaran otomatis setiap 15 detik.</div>
 </div>
 <script>
-const id=new URLSearchParams(location.search).get("id");
-const card=document.getElementById("card");
-let createdAt,countdownInterval,autoCheckInterval;
-const EXPIRE_TIME=180000,AUTO_CHECK_INTERVAL=15000;
-const fmt=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
-function stopAll(){clearInterval(countdownInterval);clearInterval(autoCheckInterval);}
-function startTimer(){countdownInterval=setInterval(()=>{const diff=Math.floor((createdAt+EXPIRE_TIME-Date.now())/1000);const el=document.getElementById("timer");if(!el)return;if(diff<=0){stopAll();card.innerHTML=`<h1>⏰ Expired</h1><p class="sub">QRIS sudah tidak berlaku.</p><button class="btn" onclick="location.href='/'">💚 Donasi Lagi</button>`;return;}el.textContent=fmt(diff);if(diff<=20)el.classList.add("danger");},1000);}
-function startAutoCheck(){autoCheckInterval=setInterval(()=>checkPayment(true),AUTO_CHECK_INTERVAL);}
-async function loadData(){const r=await fetch("/donation/"+id);const d=await r.json();if(!d||!d.qr){card.innerHTML="<h2>❌ QRIS tidak ditemukan</h2>";return;}createdAt=d.created_at;qr.src=d.qr;amount.textContent="Rp "+Number(d.amount_unique).toLocaleString("id-ID");startTimer();startAutoCheck();}
-loadData();
-async function checkPayment(silent=false){
-const btn=document.getElementById("checkBtn");
-if(!silent){btn.disabled=true;btn.textContent="⏳ Mengecek...";}
-try{
-const r=await fetch("/check/"+id);const d=await r.json();
-if(d.status==="paid"){
-stopAll();
-card.innerHTML=`<div class="badge">✅ Success</div><h1 class="success">Pembayaran Berhasil</h1><p class="sub">Terima kasih sudah mendukung Eliana Charoline 💚</p><p>Kembali ke halaman utama dalam <b id="count">3</b> detik...</p>`;
-let c=3;const e=document.getElementById("count");
-const t=setInterval(()=>{c--;if(e)e.textContent=c;if(c<=0){clearInterval(t);location.href="/";}},1000);
-}else if(d.status==="pending"){
-if(!silent){alert("Pembayaran belum diterima.");btn.disabled=false;btn.textContent="🔍 Cek Pembayaran";}
-}else{
-stopAll();
-if(!silent){alert("QRIS sudah expired.");location.reload();}
+
+const id =
+    new URLSearchParams(location.search)
+    .get("id");
+
+const card =
+    document.getElementById("card");
+
+let createdAt;
+let countdown;
+
+const EXPIRE = 180000;
+
+const fmt = s =>
+`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+
+function stop(){
+    clearInterval(countdown);
 }
-}catch(e){
-if(!silent){alert("Gagal cek pembayaran.");btn.disabled=false;btn.textContent="🔍 Cek Pembayaran";}
+
+function paymentSuccess(){
+
+    stop();
+
+    card.innerHTML = `
+    <div class="avatar">✅</div>
+    <h1 class="success">
+        Pembayaran Berhasil
+    </h1>
+
+    <p class="sub">
+        Terima kasih telah mendukung
+        Eliana Interactive 💚
+    </p>
+
+    <h2>
+        Redirect dalam
+        <span id="c">3</span>...
+    </h2>
+    `;
+
+    let n = 3;
+
+    const t = setInterval(()=>{
+
+        document.getElementById("c")
+        .textContent = --n;
+
+        if(n <= 0){
+
+            clearInterval(t);
+
+            location.href="/";
+
+        }
+
+    },1000);
+
 }
+
+function startTimer(){
+
+    countdown = setInterval(()=>{
+
+        const left =
+            Math.floor(
+                (createdAt + EXPIRE - Date.now())
+                / 1000
+            );
+
+        if(left <= 0){
+
+            stop();
+
+            card.innerHTML = `
+            <div class="avatar">⏰</div>
+            <h1>QRIS Expired</h1>
+            <p class="sub">
+                Silakan buat pembayaran baru.
+            </p>
+
+            <button
+                class="btn"
+                onclick="location.href='/'"
+            >
+                💚 DONASI LAGI
+            </button>
+            `;
+
+            return;
+        }
+
+        timer.textContent =
+            fmt(left);
+
+        if(left <= 20){
+
+            timer.classList.add(
+                "danger"
+            );
+
+        }
+
+        bar.style.width =
+            (left / 180 * 100) + "%";
+
+    },1000);
+
 }
+
+async function load(){
+
+    const r =
+        await fetch(
+            "/donation/" + id
+        );
+
+    const d =
+        await r.json();
+
+    if(!d || !d.qr){
+
+        card.innerHTML =
+        "<h2>QRIS tidak ditemukan</h2>";
+
+        return;
+
+    }
+
+    createdAt =
+        d.created_at;
+
+    qr.src =
+        d.qr;
+
+    amount.textContent =
+        "Rp " +
+        Number(d.amount_unique)
+        .toLocaleString("id-ID");
+
+    startTimer();
+
+    connectWS();
+
+}
+
+load();
+
+function connectWS(){
+
+    const protocol =
+        location.protocol === "https:"
+        ? "wss:"
+        : "ws:";
+
+    const ws =
+        new WebSocket(
+            `${protocol}//${location.host}/ws`
+        );
+
+    ws.onopen = ()=>{
+
+        console.log(
+            "WS Connected"
+        );
+
+        ws.send(
+            JSON.stringify({
+                type:"watch_payment",
+                id:id
+            })
+        );
+
+        const btn =
+            document.getElementById(
+                "checkBtn"
+            );
+
+        btn.textContent =
+            "🟢 REALTIME AKTIF";
+
+    };
+
+    ws.onmessage = (event)=>{
+
+        try{
+
+            const msg =
+                JSON.parse(
+                    event.data
+                );
+
+            if(
+                msg.type ===
+                "payment_paid"
+                &&
+                String(msg.id)
+                ===
+                String(id)
+            ){
+
+                paymentSuccess();
+
+            }
+
+        }catch(err){
+
+            console.error(err);
+
+        }
+
+    };
+
+    ws.onclose = ()=>{
+
+        console.log(
+            "WS Disconnected"
+        );
+
+        const btn =
+            document.getElementById(
+                "checkBtn"
+            );
+
+        btn.textContent =
+            "🔴 RECONNECTING...";
+
+        setTimeout(
+            connectWS,
+            3000
+        );
+
+    };
+
+}
+
+async function checkPayment(){
+
+    alert(
+        "Realtime aktif. Sistem akan otomatis mendeteksi pembayaran."
+    );
+
+}
+
 </script>
 </body>
 </html>
