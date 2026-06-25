@@ -1,258 +1,72 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pembayaran</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background: radial-gradient(circle at top, #1e293b, #0f172a);
-  color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding: 20px;
-}
-
-.card {
-  width: 100%;
-  max-width: 380px;
-  text-align: center;
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(14px);
-  padding: 28px;
-  border-radius: 18px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
-}
-
-h2 { margin: 0 0 15px; }
-
-.qr-box {
-  background: white;
-  padding: 15px;
-  border-radius: 12px;
-  display: inline-block;
-  margin: 15px 0;
-}
-
-img { width: 250px; }
-
-.amount {
-  font-size: 20px;
-  font-weight: bold;
-  margin-top: 10px;
-}
-
-.timer {
-  margin-top: 10px;
-  font-size: 18px;
-  font-weight: bold;
-  color: #facc15;
-}
-
-.danger { color: #ef4444; }
-
-.btn {
-  margin-top: 15px;
-  padding: 10px;
-  width: 100%;
-  border: none;
-  border-radius: 8px;
-  background: #22c55e;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.btn:disabled {
-  background: #555;
-  cursor: not-allowed;
-}
-
-.success {
-  color: #22c55e;
-  font-size: 18px;
-  margin-top: 20px;
-}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Segoe UI,sans-serif;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:24px;color:#fff;background:radial-gradient(circle at top,#3b82f6,#111827 35%,#020617)}
+body:before,body:after{content:"";position:fixed;width:420px;height:420px;border-radius:50%;filter:blur(90px);opacity:.25;animation:f 10s ease-in-out infinite}
+body:before{background:#22c55e;left:-100px;top:-120px}
+body:after{background:#06b6d4;right:-120px;bottom:-120px;animation-delay:-5s}
+@keyframes f{50%{transform:translateY(-30px) scale(1.08)}}
+.card{width:100%;max-width:430px;background:rgba(255,255,255,.08);backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:34px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.badge{display:inline-block;padding:8px 15px;border-radius:999px;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.35);margin-bottom:18px}
+h1{font-size:30px}
+.sub{color:#cbd5e1;margin:10px 0 20px}
+.qr{display:inline-block;background:#fff;padding:16px;border-radius:20px;box-shadow:0 10px 25px rgba(0,0,0,.25)}
+.qr img{width:250px;display:block}
+.amount{margin:22px 0 8px;font-size:30px;font-weight:700;color:#4ade80}
+.timerbox{display:flex;justify-content:center;gap:10px;margin-bottom:18px}
+.timer{background:rgba(250,204,21,.12);border:1px solid rgba(250,204,21,.3);padding:10px 18px;border-radius:14px;color:#fde047;font-size:22px;font-weight:700}
+.danger{color:#ef4444!important}
+.btn{width:100%;padding:16px;border:none;border-radius:16px;font-size:16px;font-weight:700;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;cursor:pointer;transition:.25s}
+.btn:hover{transform:translateY(-2px)}
+.success{color:#4ade80}
 </style>
 </head>
-
 <body>
-
 <div class="card" id="card">
-  <h2>📱 Scan QRIS</h2>
-
-  <div class="qr-box">
-    <img id="qr">
-  </div>
-
-  <div class="amount" id="amount"></div>
-  <div class="note">
-    Qris Expired dalam ⏰
-  </div>
-  <div class="timer" id="timer">03:00</div>
-
-  <button class="btn" id="checkBtn" onclick="checkPayment()">
-    🔍 Cek Pembayaran
-  </button>
+<div class="badge">📱 QRIS Payment</div>
+<h1>Scan & Bayar</h1>
+<div class="sub">Scan QRIS di bawah menggunakan aplikasi e-wallet atau mobile banking.</div>
+<div class="qr"><img id="qr"></div>
+<div class="amount" id="amount"></div>
+<div class="timerbox"><div class="timer" id="timer">03:00</div></div>
+<button class="btn" id="checkBtn" onclick="checkPayment()">🔍 Cek Pembayaran</button>
 </div>
-
 <script>
-const id = new URLSearchParams(location.search).get("id");
-const card = document.getElementById("card");
-
-let createdAt = null;
-let countdownInterval = null;
-let autoCheckInterval = null;
-
-const EXPIRE_TIME = 3 * 60 * 1000; // 🔥 3 MENIT
-const AUTO_CHECK_INTERVAL = 15000; // 🔥 15 DETIK
-
-function formatTime(sec) {
-  const m = String(Math.floor(sec / 60)).padStart(2, "0");
-  const s = String(sec % 60).padStart(2, "0");
-  return `${m}:${s}`;
-}
-
-function stopAll() {
-  clearInterval(countdownInterval);
-  clearInterval(autoCheckInterval);
-}
-
-function startTimer() {
-  countdownInterval = setInterval(() => {
-    const now = Date.now();
-    const diff = Math.floor((createdAt + EXPIRE_TIME - now) / 1000);
-
-    const el = document.getElementById("timer");
-
-    if (!el) return;
-
-    if (diff <= 0) {
-      stopAll();
-
-      el.innerText = "00:00";
-      el.classList.add("danger");
-
-      document.getElementById("checkBtn").disabled = true;
-
-      card.innerHTML = `
-        <h2>⏰ Pembayaran Expired</h2>
-        <button class="btn" onclick="location.href='/'">💚 Donasi Baru</button>
-      `;
-      return;
-    }
-
-    el.innerText = formatTime(diff);
-
-    if (diff <= 20) {
-      el.classList.add("danger");
-    }
-
-  }, 1000);
-}
-
-// 🔥 AUTO CHECK
-function startAutoCheck() {
-  autoCheckInterval = setInterval(() => {
-    checkPayment(true); // silent mode
-  }, AUTO_CHECK_INTERVAL);
-}
-
-async function loadData() {
-  const res = await fetch("/donation/" + id);
-  const d = await res.json();
-
-  if (!d || !d.qr) {
-    card.innerHTML = "<h2>❌ QRIS tidak ditemukan</h2>";
-    return;
-  }
-
-  createdAt = d.created_at;
-
-  document.getElementById("qr").src = d.qr;
-  document.getElementById("amount").innerText =
-    "Rp " + Number(d.amount_unique).toLocaleString("id-ID");
-
-  startTimer();
-  startAutoCheck(); // 🔥 AUTO START
-}
-
+const id=new URLSearchParams(location.search).get("id");
+const card=document.getElementById("card");
+let createdAt,countdownInterval,autoCheckInterval;
+const EXPIRE_TIME=180000,AUTO_CHECK_INTERVAL=15000;
+const fmt=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+function stopAll(){clearInterval(countdownInterval);clearInterval(autoCheckInterval);}
+function startTimer(){countdownInterval=setInterval(()=>{const diff=Math.floor((createdAt+EXPIRE_TIME-Date.now())/1000);const el=document.getElementById("timer");if(!el)return;if(diff<=0){stopAll();card.innerHTML=`<h1>⏰ Expired</h1><p class="sub">QRIS sudah tidak berlaku.</p><button class="btn" onclick="location.href='/'">💚 Donasi Lagi</button>`;return;}el.textContent=fmt(diff);if(diff<=20)el.classList.add("danger");},1000);}
+function startAutoCheck(){autoCheckInterval=setInterval(()=>checkPayment(true),AUTO_CHECK_INTERVAL);}
+async function loadData(){const r=await fetch("/donation/"+id);const d=await r.json();if(!d||!d.qr){card.innerHTML="<h2>❌ QRIS tidak ditemukan</h2>";return;}createdAt=d.created_at;qr.src=d.qr;amount.textContent="Rp "+Number(d.amount_unique).toLocaleString("id-ID");startTimer();startAutoCheck();}
 loadData();
-
-/* ========================= */
-/* 🔥 CHECK PAYMENT */
-async function checkPayment(silent = false) {
-
-  const btn = document.getElementById("checkBtn");
-
-  if (!silent) {
-    btn.innerText = "⏳ Mengecek...";
-    btn.disabled = true;
-  }
-
-  try {
-    const res = await fetch("/check/" + id);
-    const d = await res.json();
-
-    if (d.status === "paid") {
-
-      stopAll();
-
-      card.innerHTML = `
-        <h2 class="success">✅ Pembayaran Berhasil</h2>
-        <p>Terima kasih sudah donasi 💚</p>
-        <p>Kembali dalam <b id="count">3</b> detik...</p>
-      `;
-
-      let count = 3;
-      const el = document.getElementById("count");
-
-      const timer = setInterval(() => {
-        count--;
-        if (el) el.innerText = count;
-
-        if (count <= 0) {
-          clearInterval(timer);
-          location.href = "/";
-        }
-      }, 1000);
-
-    } else if (d.status === "pending") {
-
-      if (!silent) {
-        alert("❌ Pembayaran belum diterima!");
-        btn.innerText = "🔍 Cek Pembayaran";
-        btn.disabled = false;
-      }
-
-    } else {
-
-      stopAll();
-
-      if (!silent) {
-        alert("⏰ QRIS sudah expired!");
-        location.reload();
-      }
-    }
-
-  } catch (e) {
-    console.error(e);
-
-    if (!silent) {
-      alert("❌ Gagal cek pembayaran");
-      btn.innerText = "🔍 Cek Pembayaran";
-      btn.disabled = false;
-    }
-  }
+async function checkPayment(silent=false){
+const btn=document.getElementById("checkBtn");
+if(!silent){btn.disabled=true;btn.textContent="⏳ Mengecek...";}
+try{
+const r=await fetch("/check/"+id);const d=await r.json();
+if(d.status==="paid"){
+stopAll();
+card.innerHTML=`<div class="badge">✅ Success</div><h1 class="success">Pembayaran Berhasil</h1><p class="sub">Terima kasih sudah mendukung Eliana Charoline 💚</p><p>Kembali ke halaman utama dalam <b id="count">3</b> detik...</p>`;
+let c=3;const e=document.getElementById("count");
+const t=setInterval(()=>{c--;if(e)e.textContent=c;if(c<=0){clearInterval(t);location.href="/";}},1000);
+}else if(d.status==="pending"){
+if(!silent){alert("Pembayaran belum diterima.");btn.disabled=false;btn.textContent="🔍 Cek Pembayaran";}
+}else{
+stopAll();
+if(!silent){alert("QRIS sudah expired.");location.reload();}
+}
+}catch(e){
+if(!silent){alert("Gagal cek pembayaran.");btn.disabled=false;btn.textContent="🔍 Cek Pembayaran";}
+}
 }
 </script>
-
 </body>
 </html>

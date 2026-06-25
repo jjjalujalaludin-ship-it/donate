@@ -1,184 +1,181 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Donate</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<title>Donate</title>
 <style>
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background: radial-gradient(circle at top, #1e293b, #0f172a);
-  color: white;
-
-  display: flex;
-  justify-content: center;
-  align-items: center;
-
-  min-height: 100vh;
-  padding: 20px;
-}
-
-.card {
-  width: 100%;
-  max-width: 380px;
-
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(14px);
-
-  padding: 28px;
-  border-radius: 18px;
-
-  box-shadow: 
-    0 10px 40px rgba(0,0,0,0.4),
-    inset 0 0 0 1px rgba(255,255,255,0.05);
-
-  text-align: center;
-}
-
-h2 {
-  margin: 0 0 20px;
-  font-size: 22px;
-}
-
-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-input, textarea {
-  width: 100%;
-  padding: 12px;
-  border-radius: 10px;
-  border: none;
-  outline: none;
-
-  background: rgba(255,255,255,0.08);
-  color: white;
-
-  font-size: 14px;
-}
-
-textarea {
-  resize: none;
-  height: 80px;
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: #aaa;
-}
-
-button {
-  margin-top: 8px;
-  padding: 13px;
-
-  border: none;
-  border-radius: 12px;
-
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  color: white;
-
-  font-weight: bold;
-  font-size: 15px;
-
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-button:hover {
-  transform: translateY(-2px);
-  opacity: 0.95;
-}
-
-.note {
-  margin-top: 14px;
-  font-size: 12px;
-  opacity: 0.7;
-  line-height: 1.6;
-}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+font-family:Segoe UI,sans-serif;
+min-height:100vh;
+display:flex;
+align-items:center;
+justify-content:center;
+padding:24px;
+overflow:hidden;
+background:
+radial-gradient(circle at top,#3b82f6 0,#1e293b 30%,#020617 100%);
+color:#fff}
+body:before,body:after{
+content:"";
+position:fixed;
+width:420px;height:420px;
+border-radius:50%;
+filter:blur(80px);
+opacity:.25;
+animation:float 10s ease-in-out infinite}
+body:before{background:#22c55e;left:-120px;top:-100px}
+body:after{background:#06b6d4;right:-120px;bottom:-100px;animation-delay:-5s}
+@keyframes float{50%{transform:translateY(-30px) scale(1.08)}}
+.card{
+position:relative;
+width:100%;
+max-width:430px;
+background:rgba(255,255,255,.08);
+backdrop-filter:blur(22px);
+border:1px solid rgba(255,255,255,.12);
+border-radius:28px;
+padding:34px;
+box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.badge{
+display:inline-block;
+padding:8px 14px;
+border-radius:999px;
+background:rgba(34,197,94,.18);
+border:1px solid rgba(34,197,94,.35);
+font-size:13px;
+margin-bottom:18px}
+h1{font-size:30px;margin-bottom:8px}
+.sub{color:#cbd5e1;font-size:14px;line-height:1.5;margin-bottom:24px}
+form{display:flex;flex-direction:column;gap:14px}
+.field{display:flex;flex-direction:column;gap:7px}
+label{font-size:13px;color:#dbeafe}
+input,textarea{
+width:100%;
+padding:14px 16px;
+border-radius:14px;
+border:1px solid rgba(255,255,255,.08);
+background:rgba(255,255,255,.07);
+color:#fff;
+outline:none;
+transition:.25s}
+input::placeholder,textarea::placeholder{color:#94a3b8}
+input:focus,textarea:focus{
+border-color:#22c55e;
+box-shadow:0 0 0 4px rgba(34,197,94,.15)}
+textarea{resize:none;height:95px}
+button{
+margin-top:6px;
+padding:16px;
+border:none;
+border-radius:16px;
+font-weight:700;
+font-size:16px;
+cursor:pointer;
+color:#fff;
+background:linear-gradient(135deg,#22c55e,#16a34a);
+transition:.25s}
+button:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(34,197,94,.35)}
+.info{
+margin-top:22px;
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px}
+.box{
+background:rgba(255,255,255,.05);
+border:1px solid rgba(255,255,255,.08);
+padding:14px;
+border-radius:14px;
+text-align:center}
+.box b{display:block;margin-bottom:5px;color:#4ade80}
+.small{font-size:12px;color:#cbd5e1}
 </style>
 </head>
 <body>
-
 <div class="card">
-  <h2>💚 Eliana Charoline Donation</h2>
+<div class="badge">💚 Support Eliana Charoline</div>
+<h1>Donation</h1>
+<div class="sub">Terima kasih sudah mendukung livestream. Setiap donasi sangat berarti dan membantu perkembangan channel ❤️</div>
 
-  <form id="form">
-    <input id="nameInput" name="name" placeholder="Nama kamu" required>
-    <input name="amount" type="number" placeholder="Nominal (min 1000)" required>
-    <input name="media_url" placeholder="Link YouTube mediashare (opsional)">
-    <textarea name="message" placeholder="Tulis pesan untuk streamer"></textarea>
+<form id="form">
+<div class="field">
+<label>Nama</label>
+<input id="nameInput" name="name" placeholder="Masukkan nama kamu" required>
+</div>
 
-    <button>Donate 🚀</button>
-  </form>
+<div class="field">
+<label>Nominal</label>
+<input name="amount" type="number" placeholder="Minimal Rp 1.000" required>
+</div>
 
-  <div class="note">
-    🎬 Media share min Rp 10.000<br>
-    ⏱ Rp 200 = 1 detik video
-  </div>
+<div class="field">
+<label>Media Share (Opsional)</label>
+<input name="media_url" placeholder="https://youtube.com/...">
+</div>
+
+<div class="field">
+<label>Pesan</label>
+<textarea name="message" placeholder="Tulis pesan untuk streamer..."></textarea>
+</div>
+
+<button>🚀 Donate Sekarang</button>
+</form>
+
+<div class="info">
+<div class="box">
+<b>🎬 Media Share</b>
+<div class="small">Minimal Rp10.000</div>
+</div>
+<div class="box">
+<b>⏱ Durasi</b>
+<div class="small">Rp200 = 1 detik</div>
+</div>
+</div>
 </div>
 
 <script>
-const form = document.getElementById("form");
-const nameInput = document.getElementById("nameInput");
+const form=document.getElementById("form");
+const nameInput=document.getElementById("nameInput");
 
-// 🔥 LOAD NAMA SAAT HALAMAN DIBUKA
-window.addEventListener("DOMContentLoaded", () => {
-  const savedName = localStorage.getItem("donation_name");
-  if (savedName) {
-    nameInput.value = savedName;
-  }
+window.addEventListener("DOMContentLoaded",()=>{
+ const savedName=localStorage.getItem("donation_name");
+ if(savedName) nameInput.value=savedName;
 });
 
-// 🔥 AUTO SAVE SAAT KETIK
-nameInput.addEventListener("input", () => {
-  localStorage.setItem("donation_name", nameInput.value);
+nameInput.addEventListener("input",()=>{
+ localStorage.setItem("donation_name",nameInput.value);
 });
 
-form.onsubmit = async (e) => {
-  e.preventDefault();
+form.onsubmit=async(e)=>{
+ e.preventDefault();
+ const btn=form.querySelector("button");
+ btn.innerText="Loading...";
+ btn.disabled=true;
 
-  const btn = form.querySelector("button");
-  btn.innerText = "Loading...";
-  btn.disabled = true;
+ const data=Object.fromEntries(new FormData(form));
+ localStorage.setItem("donation_name",data.name);
 
-  const data = Object.fromEntries(new FormData(form));
-
-  // 🔥 SAVE LAGI PAS SUBMIT (AMAN)
-  localStorage.setItem("donation_name", data.name);
-
-  try {
-    const res = await fetch("/donate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
-
-    const json = await res.json();
-
-    if (!json.id || !json.qr) {
+ try{
+   const res=await fetch("/donate",{
+     method:"POST",
+     headers:{"Content-Type":"application/json"},
+     body:JSON.stringify(data)
+   });
+   const json=await res.json();
+   if(!json.id||!json.qr){
       alert("QRIS gagal dibuat ❌");
-      btn.innerText = "Donate 🚀";
-      btn.disabled = false;
+      btn.innerText="🚀 Donate Sekarang";
+      btn.disabled=false;
       return;
-    }
-
-    location.href = "/pay.html?id=" + json.id;
-
-  } catch (err) {
-    alert("Server error ❌");
-    btn.innerText = "Donate 🚀";
-    btn.disabled = false;
-  }
-};
+   }
+   location.href="/pay.html?id="+json.id;
+ }catch(err){
+   alert("Server error ❌");
+   btn.innerText="🚀 Donate Sekarang";
+   btn.disabled=false;
+ }
+}
 </script>
-
 </body>
 </html>

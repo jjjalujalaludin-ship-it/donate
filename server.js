@@ -3,55 +3,178 @@ const http = require("http");
 const { Server } = require("socket.io");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const WebSocket = require("ws");
 
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config();
+const CONFIG_FILE =
+  path.join(__dirname, "config.json");
 
-const ENV_FILE = path.join(__dirname, ".env");
+function loadConfig() {
+
+  try {
+
+    if (!fs.existsSync(CONFIG_FILE)) {
+
+      fs.writeFileSync(
+        CONFIG_FILE,
+        JSON.stringify({
+          orderkuota: {
+            username: "",
+            token: ""
+          }
+        }, null, 2)
+      );
+
+    }
+
+    return JSON.parse(
+      fs.readFileSync(
+        CONFIG_FILE,
+        "utf8"
+      )
+    );
+
+  } catch {
+
+    return {
+      orderkuota: {
+        username: "",
+        token: ""
+      }
+    };
+
+  }
+
+}
+
+let config = loadConfig();
 
 let ORDERKUOTA_USERNAME =
-  process.env.ORDERKUOTA_USERNAME || "";
+  config.orderkuota.username || "";
 
 let ORDERKUOTA_TOKEN =
-  process.env.ORDERKUOTA_TOKEN || "";
+  config.orderkuota.token || "";
+  
+require("dotenv").config();
 
-function saveOrderKuotaConfig(username, token) {
 
-  let env = "";
 
-  if (fs.existsSync(ENV_FILE)) {
-    env = fs.readFileSync(ENV_FILE, "utf8");
-  }
+function saveOrderKuotaConfig(
+  username,
+  token
+){
 
-  if (/^ORDERKUOTA_USERNAME=.*/m.test(env)) {
-    env = env.replace(
-      /^ORDERKUOTA_USERNAME=.*/m,
-      `ORDERKUOTA_USERNAME=${username}`
-    );
-  } else {
-    env += `\nORDERKUOTA_USERNAME=${username}`;
-  }
+  config.orderkuota = {
 
-  if (/^ORDERKUOTA_TOKEN=.*/m.test(env)) {
-    env = env.replace(
-      /^ORDERKUOTA_TOKEN=.*/m,
-      `ORDERKUOTA_TOKEN=${token}`
-    );
-  } else {
-    env += `\nORDERKUOTA_TOKEN=${token}`;
-  }
+    username,
+    token
 
-  fs.writeFileSync(ENV_FILE, env);
+  };
 
-  ORDERKUOTA_USERNAME = username;
-  ORDERKUOTA_TOKEN = token;
+  fs.writeFileSync(
+    CONFIG_FILE,
+    JSON.stringify(
+      config,
+      null,
+      2
+    )
+  );
+
+  ORDERKUOTA_USERNAME =
+    username;
+
+  ORDERKUOTA_TOKEN =
+    token;
+
 }
 const DB_FILE = path.join(__dirname, "donations.json");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+// ===============================
+// HUB WS SERVER
+// ===============================
+
+const wss = new WebSocket.Server({
+  server,
+  path: "/ws"
+});
+
+const wsClients = new Set();
+
+wss.on("connection", (ws, req) => {
+
+  console.log(
+    "🔌 WS Connected:",
+    req.socket.remoteAddress
+  );
+
+  ws.isAlive = true;
+
+  ws.on("pong", () => {
+    ws.isAlive = true;
+  });
+
+  wsClients.add(ws);
+
+  ws.on("message", raw => {
+
+    try {
+
+      const msg =
+        JSON.parse(raw.toString());
+
+      if(msg.type === "hello"){
+
+        ws.lastTrx =
+          msg.lastTrx || null;
+
+        console.log(
+          "👋 HELLO",
+          ws.lastTrx
+        );
+
+      }
+
+    } catch {}
+
+  });
+
+  ws.on("close", () => {
+
+    wsClients.delete(ws);
+
+    console.log(
+      "❌ WS Disconnected"
+    );
+
+  });
+
+});
+
+setInterval(() => {
+
+  for(const ws of wsClients){
+
+    if(ws.isAlive === false){
+
+      ws.terminate();
+
+      wsClients.delete(ws);
+
+      continue;
+
+    }
+
+    ws.isAlive = false;
+
+    ws.ping();
+
+  }
+
+},15000);
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -66,47 +189,72 @@ const {
 // ===============================
 // 🔥 HUB CONFIG (FIX NON BLOCKING)
 // ===============================
-const HUB_URL = "https://server.elianainteractive.com/api/notify";
-const HUB_TOKEN = "EI115256152";
 
 function sendToHub(d) {
+
   try {
 
-    // 🔥 ANTI DOUBLE TRIGGER
-    if (d.already_sent_to_hub) return;
-
     const payload = {
-      time: new Date().toISOString().slice(0, 19).replace("T", " "),
+
+      type: "notification",
+
       trx: String(d.id),
-      title: "Donasi Masuk",
-      user: d.name || "SESEORANG",
-      pesan: d.message || "",
-      amount: parseInt(d.amount_original)
+
+      user:
+        d.name || "SESEORANG",
+
+      title:
+        "Donasi Masuk",
+
+      pesan:
+        d.message || "",
+
+      amount:
+        Number(d.amount_original),
+
+      time:
+        new Date()
+        .toISOString()
+
     };
 
-    if (!payload.trx || payload.amount <= 0) return;
+    const json =
+      JSON.stringify(payload);
 
-    fetch(HUB_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Hub-Token": HUB_TOKEN
-      },
-      body: JSON.stringify(payload)
-    })
-    .then(() => {
-      console.log("📡 HUB SENT:", payload.trx);
+    let sent = 0;
 
-      // 🔥 SET FLAG
-      d.already_sent_to_hub = true;
-    })
-    .catch(err => {
-      console.log("❌ HUB ERROR:", err.message);
-    });
+    for(const ws of wsClients){
 
-  } catch (err) {
-    console.log("❌ HUB CRASH:", err.message);
+      if(
+        ws.readyState ===
+        WebSocket.OPEN
+      ){
+
+        ws.send(json);
+
+        sent++;
+
+      }
+
+    }
+
+    console.log(
+      "📡 Broadcast:",
+      payload.trx,
+      "->",
+      sent,
+      "client(s)"
+    );
+
+  } catch(err){
+
+    console.log(
+      "❌ WS ERROR:",
+      err.message
+    );
+
   }
+
 }
 
 /* ========================= */
@@ -382,7 +530,7 @@ app.get("/check/:id", (req, res) => {
 /* ========================= */
 
 app.get("/donations", (req, res) => {
-  res.json(donations.reverse());
+  res.json([...donations].reverse());
 });
 
 // 🔥 DASHBOARD DATA
@@ -700,3 +848,199 @@ app.post("/orderkuota/createpayment", async (req, res) => {
   }
 
 });
+
+app.get("/ws-status",(req,res)=>{
+
+  res.json({
+
+    clients:
+      wsClients.size
+
+  });
+
+});
+
+const BROADCAST_TOKEN =
+  process.env.BROADCAST_TOKEN ||
+  "ELIANA_SECRET";
+
+function broadcastEvent(payload){
+
+    console.log(
+        "SEND TO WS:",
+        payload
+    );
+
+    const json =
+        JSON.stringify(payload);
+
+    let sent = 0;
+
+    for(const ws of wsClients){
+
+        if(
+            ws.readyState ===
+            WebSocket.OPEN
+        ){
+
+            ws.send(json);
+
+            sent++;
+
+        }
+
+    }
+
+    return sent;
+
+}
+
+app.post("/broadcast", (req, res) => {
+
+  try {
+
+    const token = req.headers["x-broadcast-token"];
+
+    if (token !== BROADCAST_TOKEN) {
+
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized"
+      });
+
+    }
+
+    const {
+      trx,
+      user,
+      title,
+      pesan,
+      amount,
+      time
+    } = req.body || {};
+
+    if (!trx) {
+
+      return res.status(400).json({
+        success: false,
+        error: "missing trx"
+      });
+
+    }
+
+    // ===============================
+    // PAYLOAD UNTUK WEBSOCKET CLIENT
+    // ===============================
+
+    const payload = {
+
+      type: "notification",
+
+      trx,
+
+      user,
+
+      title,
+
+      pesan,
+
+      amount,
+
+      time
+
+    };
+	
+// ===============================
+// SIMPAN KE DONATIONS
+// ===============================
+
+const now = new Date();
+
+const donation = {
+
+  id: trx,
+
+  name: user,
+
+  message: pesan,
+
+  media_url: "",
+
+  amount_original: Number(amount),
+
+  amount_unique: Number(amount),
+
+  video_duration: Math.floor(Number(amount) / 200),
+
+  tanggal: now.toLocaleDateString("id-ID"),
+
+  jam: now.toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }),
+
+  created_at: now.getTime()
+
+};
+
+donations.push(donation);
+
+if (donations.length > 1000) {
+  donations = donations.slice(-1000);
+}
+
+saveDonations();
+
+const sent = broadcastEvent(payload);
+
+io.emit("donation", donation);
+
+io.emit("dashboard_update");
+
+    console.log(
+      "[HUB] notify broadcast:",
+      trx,
+      "->",
+      sent,
+      "WS client(s)"
+    );
+
+    console.log(
+      "[OVERLAY] donation emitted:",
+      user,
+      amount
+    );
+
+    res.json({
+      ok: true,
+      sent
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
+
+});
+
+app.get(
+  "/orderkuota/current",
+  (req,res)=>{
+
+    res.json({
+
+      username:
+        ORDERKUOTA_USERNAME,
+
+      tokenLength:
+        ORDERKUOTA_TOKEN.length
+
+    });
+
+  }
+);
