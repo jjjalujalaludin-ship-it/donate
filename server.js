@@ -90,6 +90,160 @@ function saveOrderKuotaConfig(
 }
 const DB_FILE = path.join(__dirname, "donations.json");
 
+// ===============================
+// EVENT QUEUE
+// ===============================
+
+const QUEUE_FILE = path.join(__dirname, "queue.json");
+
+let eventQueue = [];
+
+if (fs.existsSync(QUEUE_FILE)) {
+
+    try {
+
+        eventQueue = JSON.parse(
+            fs.readFileSync(
+                QUEUE_FILE,
+                "utf8"
+            )
+        );
+
+    } catch {
+
+        eventQueue = [];
+
+    }
+
+}
+
+function saveQueue(){
+
+    fs.writeFileSync(
+        QUEUE_FILE,
+        JSON.stringify(
+            eventQueue,
+            null,
+            2
+        )
+    );
+
+}
+
+function enqueueEvent(payload){
+
+    const trx = String(payload.trx);
+
+    // kalau sudah ada jangan tambah lagi
+    if(eventQueue.some(e => e.trx === trx)){
+        return;
+    }
+
+    eventQueue.push({
+
+        trx,
+
+        payload,
+
+        state: "pending",
+
+        lastSend: 0,
+
+        retry: 0,
+
+        created_at: Date.now()
+
+    });
+
+    saveQueue();
+
+    console.log("[QUEUE] ADD", trx);
+
+    // langsung coba kirim
+    dispatchQueue();
+
+}
+
+function removeQueue(trx){
+
+    const before =
+        eventQueue.length;
+
+    eventQueue =
+        eventQueue.filter(
+            e=>e.trx!==String(trx)
+        );
+
+    if(before!==eventQueue.length){
+
+        saveQueue();
+
+        console.log(
+            "[QUEUE] REMOVE",
+            trx
+        );
+
+    }
+
+}
+
+function dispatchQueue(){
+
+    if(eventQueue.length === 0)
+        return;
+
+    for(const item of eventQueue){
+
+        if(item.state !== "pending")
+            continue;
+
+        const json = JSON.stringify(item.payload);
+
+        let sent = false;
+
+        for(const ws of wsClients){
+
+            if(
+                ws.readyState !== WebSocket.OPEN ||
+                !ws.ready
+            ){
+                continue;
+            }
+
+            try{
+
+                ws.send(json);
+
+                sent = true;
+
+            }catch{}
+
+        }
+
+        if(sent){
+
+            item.state = "waiting_ack";
+
+            item.lastSend = Date.now();
+
+            item.retry++;
+			
+			saveQueue();
+
+            console.log(
+                "[QUEUE] SEND",
+                item.trx
+            );
+
+        }
+
+    }
+
+    saveQueue();
+
+}
+
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -126,14 +280,35 @@ wss.on("connection", (ws, req) => {
       const msg =
         JSON.parse(raw.toString());
 
-      if(msg.type === "hello"){
+if(msg.type === "hello"){
 
     ws.lastTrx =
-      msg.lastTrx || null;
+        msg.lastTrx || null;
+
+    ws.clientId =
+        msg.clientId || "default";
+
+    ws.ready = true;
+
+// reset event yg belum sempat ACK
+for(const item of eventQueue){
+
+    if(item.state==="waiting_ack"){
+
+        item.state="pending";
+
+    }
+
+}
+
+saveQueue();
+
+dispatchQueue();
 
     console.log(
-      "👋 HELLO",
-      ws.lastTrx
+        "👋 HELLO",
+        ws.clientId,
+        ws.lastTrx
     );
 
 }
@@ -146,6 +321,17 @@ if(msg.type === "watch_payment"){
       "👀 WATCH PAYMENT:",
       ws.paymentId
     );
+
+}
+
+if(msg.type === "ack"){
+
+    console.log(
+        "✅ ACK:",
+        msg.trx
+    );
+
+    removeQueue(msg.trx);
 
 }
 
@@ -164,6 +350,8 @@ if(msg.type === "watch_payment"){
   });
 
 });
+
+
 
 setInterval(() => {
 
@@ -207,55 +395,30 @@ function sendToHub(d) {
 
     const payload = {
 
-      type: "notification",
+    type: "notification",
 
-      trx: String(d.id),
+    trx: String(d.id),
 
-      user:
-        d.name || "SESEORANG",
+    user: d.name || "SESEORANG",
 
-      title:
-        "Donasi Masuk",
+    title: "Donasi Masuk",
 
-      pesan:
-        d.message || "",
+    pesan: d.message || "",
 
-      amount:
-        Number(d.amount_original),
+    amount: Number(d.amount_original),
 
-      time:
-        new Date()
-        .toISOString()
+    time: new Date().toISOString()
 
-    };
+};
 
-    const json =
-      JSON.stringify(payload);
+// Simpan ke queue.
+// Queue Worker yang akan mengirim.
+enqueueEvent(payload);
 
-    let sent = 0;
-
-    for(const ws of wsClients){
-
-      if(
-        ws.readyState ===
-        WebSocket.OPEN
-      ){
-
-        ws.send(json);
-
-        sent++;
-
-      }
-
-    }
-
-    console.log(
-      "📡 Broadcast:",
-      payload.trx,
-      "->",
-      sent,
-      "client(s)"
-    );
+console.log(
+    "📥 Queue:",
+    payload.trx
+);
 
   } catch(err){
 
@@ -897,32 +1060,9 @@ const BROADCAST_TOKEN =
 
 function broadcastEvent(payload){
 
-    console.log(
-        "SEND TO WS:",
-        payload
-    );
+    enqueueEvent(payload);
 
-    const json =
-        JSON.stringify(payload);
-
-    let sent = 0;
-
-    for(const ws of wsClients){
-
-        if(
-            ws.readyState ===
-            WebSocket.OPEN
-        ){
-
-            ws.send(json);
-
-            sent++;
-
-        }
-
-    }
-
-    return sent;
+    return wsClients.size;
 
 }
 
