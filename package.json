@@ -12,6 +12,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.18.2",
+    "google-tts-api": "^2.0.2",
     "mysql2": "^3.10.0",
     "node-upload-images": "^1.0.1",
     "qrcode": "^1.5.4",
