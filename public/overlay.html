@@ -180,30 +180,39 @@ window.onload = () => {
     return new Promise(r=>setTimeout(r,ms));
   }
 
-  // 🔥 TTS NAHIDA
-  function speakNahida(text) {
-    return new Promise(async (resolve) => {
-      try {
-        const url = "https://elianacharoline-api.vercel.app/tools/text-to-speech?apikey=ugaliuwt87t8wq98ysg98ay&model=nahida&text=" + encodeURIComponent(text);
+  // 🔥 GOOGLE TTS (via endpoint /tts)
+function speakGoogle(text) {
+  return new Promise(async (resolve) => {
+    try {
 
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (!data.result?.length) return resolve();
-
-        if (currentAudio) currentAudio.pause();
-
-        const audio = new Audio(data.result[0].url);
-        currentAudio = audio;
-
-        audio.onended = resolve;
-        await audio.play();
-
-      } catch {
-        resolve();
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
       }
-    });
-  }
+
+      const audio = new Audio(
+        "/tts?text=" + encodeURIComponent(text)
+      );
+
+      currentAudio = audio;
+
+      audio.onended = () => {
+        resolve();
+      };
+
+      audio.onerror = (e) => {
+        console.error("TTS Error", e);
+        resolve();
+      };
+
+      await audio.play();
+
+    } catch (err) {
+      console.error(err);
+      resolve();
+    }
+  });
+}
 
   // 🔥 LISTEN TANPA MEDIA
   socket.on("donation", (d)=>{
@@ -226,7 +235,7 @@ window.onload = () => {
 
     box.classList.add("show");
 
-    await speakNahida(`${data.name} donasi ${format(data.amount_original)} rupiah. Pesan. ${data.message}`);
+    await speakGoogle(`${data.name} donasi ${format(data.amount_original)} rupiah. Pesan. ${data.message}`);
 
     await sleep(3000);
 
