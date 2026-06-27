@@ -384,6 +384,12 @@ const {
   createQRIS: createDynamicQRIS
 } = require("./lib/orderkuota-client");
 
+const customAdapter =
+    require("./adapters/custom");
+	
+const sociabuzzAdapter =
+    require("./adapters/sociabuzz");
+
 
 // ===============================
 // 🔥 HUB CONFIG (FIX NON BLOCKING)
@@ -520,6 +526,85 @@ async function getMutasi() {
   }
 }
 
+function emitOverlay(d) {
+
+  if (d.media_url && String(d.media_url).trim() !== "") {
+
+    io.emit("donation_media", d);
+
+  } else {
+
+    io.emit("donation", d);
+
+  }
+
+}
+
+function emitDashboard() {
+
+  io.emit("dashboard_update");
+
+}
+
+function emitInteractive(d) {
+
+  setTimeout(() => sendToHub(d), 0);
+
+}
+
+function handleDonation(d, options = {}) {
+
+  const {
+
+    interactive = true,
+
+    overlay = true,
+
+    dashboard = true
+
+  } = options;
+  
+  // Default metadata
+if (!d.source) {
+  d.source = "unknown";
+}
+
+if (!d.platform) {
+  d.platform = "unknown";
+}
+
+  donations.push(d);
+
+  if (donations.length > 1000) {
+
+    donations = donations.slice(-1000);
+
+  }
+
+  saveDonations();
+
+  if (interactive) {
+
+    emitInteractive(d);
+
+  }
+
+  if (overlay) {
+
+    emitOverlay(d);
+
+  }
+
+  if (dashboard) {
+
+    emitDashboard();
+
+  }
+
+  return d;
+
+}
+
 /* ========================= */
 /* 🔥 AUTO LOOP */
 
@@ -574,57 +659,65 @@ async function checkMutasiLoop() {
 
           d.created_at = Date.now();
 
-          donations.push({
-            id: d.id,
-            name: d.name,
-            message: d.message,
-            media_url: d.media_url,
-            amount_original: d.amount_original,
-            amount_unique: d.amount_unique,
-            video_duration: d.video_duration,
-            tanggal: d.tanggal,
-            jam: d.jam,
-            created_at: d.created_at
-          });
+          // Simpan data yang sudah dibayar
+d.status = "paid";
 
-          if (donations.length > 1000) {
-            donations = donations.slice(-1000);
-          }
+pendingDonations =
+  pendingDonations.filter(x => x.id !== d.id);
 
-          saveDonations();
-		  
-		  // ===============================
+console.log("💰 PAID:", d.amount_unique);
+
+// ===============================
 // PAYMENT PAID WS
 // ===============================
 
-for(const ws of wsClients){
+for (const ws of wsClients) {
 
-    if(
-        ws.readyState === WebSocket.OPEN &&
-        String(ws.paymentId) === String(d.id)
-    ){
+  if (
+    ws.readyState === WebSocket.OPEN &&
+    String(ws.paymentId) === String(d.id)
+  ) {
 
-        ws.send(JSON.stringify({
-            type: "payment_paid",
-            id: d.id
-        }));
+    ws.send(JSON.stringify({
+      type: "payment_paid",
+      id: d.id
+    }));
 
-    }
+  }
 
 }
 
-          pendingDonations = pendingDonations.filter(x => x.id !== d.id);
+// ===============================
+// HANDLE DONATION
+// ===============================
 
-          console.log("💰 PAID:", d.amount_unique);
+handleDonation({
 
-          setTimeout(() => sendToHub(d), 0);
+  id: d.id,
+  
+  source: "orderkuota",
 
-          if (d.media_url) {
-  io.emit("donation_media", d);
-} else {
-  io.emit("donation", d);
-}
-          io.emit("dashboard_update");
+  platform: "qris",
+
+  name: d.name,
+
+  message: d.message,
+
+  media_url: d.media_url,
+
+  amount_original: d.amount_original,
+
+  amount_unique: d.amount_unique,
+
+  video_duration: d.video_duration,
+
+  tanggal: d.tanggal,
+
+  jam: d.jam,
+
+  created_at: d.created_at
+
+});
         }
       }
     }
@@ -642,16 +735,30 @@ app.post("/donate", async (req, res) => {
   const qris = await createQRIS(amount_unique);
 
   const donation = {
-    id: Date.now(),
-    name,
-    message,
-    media_url,
-    amount_original: Number(amount),
-    amount_unique,
-    qr: qris.image,
-    status: "pending",
-    created_at: Date.now()
-  };
+
+  id: Date.now(),
+
+  source: "orderkuota",
+
+  platform: "qris",
+
+  name,
+
+  message,
+
+  media_url,
+
+  amount_original: Number(amount),
+
+  amount_unique,
+
+  qr: qris.image,
+
+  status: "pending",
+
+  created_at: Date.now()
+
+};
 
   pendingDonations.push(donation);
   checkMutasiLoop();
@@ -660,41 +767,53 @@ app.post("/donate", async (req, res) => {
 });
 
 // =========================
-// 🧪 TEST DONATE (FIXED)
+// 🧪 TEST DONATE (PATCH 1)
 // =========================
 
 app.post("/test-donate", (req, res) => {
-  const { name, amount, message, media_url } = req.body; // 🔥 TAMBAH INI
+
+  const { name, amount, message, media_url } = req.body;
 
   const d = {
-    id: Date.now(),
-    name: name || "TEST USER",
-    message: message || "Test donation 🚀",
-    media_url: media_url || "", // 🔥 FIX DI SINI
-    amount_original: Number(amount || 10000),
-    amount_unique: Number(amount || 10000),
-    video_duration: Math.floor((amount || 10000) / 200),
-    tanggal: new Date().toLocaleDateString("id-ID"),
-    jam: new Date().toLocaleTimeString("id-ID"),
-    created_at: Date.now()
-  };
 
-  donations.push(d);
-  saveDonations();
+    id: Date.now(),
+	
+	source: "test",
+
+    platform: "internal",
+
+    name: name || "TEST USER",
+
+    message: message || "Test donation 🚀",
+
+    media_url: media_url || "",
+
+    amount_original: Number(amount || 10000),
+
+    amount_unique: Number(amount || 10000),
+
+    video_duration: Math.floor((amount || 10000) / 200),
+
+    tanggal: new Date().toLocaleDateString("id-ID"),
+
+    jam: new Date().toLocaleTimeString("id-ID"),
+
+    created_at: Date.now()
+
+  };
 
   console.log("🧪 TEST DONATION:", d.amount_original);
 
-  setTimeout(() => sendToHub(d), 0);
+  handleDonation(d);
 
-  if (d.media_url) {
-    io.emit("donation_media", d);
-  } else {
-    io.emit("donation", d);
-  }
+  res.json({
 
-  io.emit("dashboard_update");
+    success: true,
 
-  res.json({ success: true, data: d });
+    data: d
+
+  });
+
 });
 
 /* ========================= */
@@ -805,16 +924,21 @@ app.get("/dashboard-detail", (req, res) => {
 /* ========================= */
 
 app.post("/replay/:id", (req, res) => {
+
   const d = donations.find(x => x.id == req.params.id);
 
-  if (!d) return res.status(404).json({ error: "not found" });
+  if (!d) {
+    return res.status(404).json({
+      error: "not found"
+    });
+  }
 
-  if (d.media_url) {
-  io.emit("donation_media", d);
-} else {
-  io.emit("donation", d);
-}
-  res.json({ success: true });
+  emitOverlay(d);
+
+  res.json({
+    success: true
+  });
+
 });
 
 /* ========================= */
@@ -1056,7 +1180,11 @@ app.get("/ws-status",(req,res)=>{
 
 const BROADCAST_TOKEN =
   process.env.BROADCAST_TOKEN ||
-  "ELIANA_SECRET";
+  "EI115256152";
+  
+const SOCIABUZZ_TOKEN =
+  process.env.SOCIABUZZ_TOKEN ||
+  "";
 
 function broadcastEvent(payload){
 
@@ -1100,7 +1228,7 @@ app.post("/broadcast", (req, res) => {
     }
 
     // ===============================
-    // PAYLOAD UNTUK WEBSOCKET CLIENT
+    // PAYLOAD UNTUK ELIANA INTERACTIVE
     // ===============================
 
     const payload = {
@@ -1120,55 +1248,29 @@ app.post("/broadcast", (req, res) => {
       time
 
     };
-	
-// ===============================
-// SIMPAN KE DONATIONS
-// ===============================
 
-const now = new Date();
+    // ===============================
+    // DONATION OBJECT
+    // ===============================
 
-const donation = {
+    const donation =
+    customAdapter(req.body);
 
-  id: trx,
+    // ===============================
+    // HANDLE DONATION
+    // ===============================
 
-  name: user,
+    handleDonation(donation, {
 
-  message: pesan,
+    interactive: false
 
-  media_url: "",
+    });
 
-  amount_original: Number(amount),
+    // ===============================
+    // WEBSOCKET CLIENT (ELIANA INTERACTIVE)
+    // ===============================
 
-  amount_unique: Number(amount),
-
-  video_duration: Math.floor(Number(amount) / 200),
-
-  tanggal: now.toLocaleDateString("id-ID"),
-
-  jam: now.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit"
-  }),
-
-  created_at: now.getTime()
-
-};
-
-donations.push(donation);
-
-if (donations.length > 1000) {
-  donations = donations.slice(-1000);
-}
-
-saveDonations();
-
-
-
-const sent = broadcastEvent(payload);
-
-io.emit("donation", donation);
-
-io.emit("dashboard_update");
+    const sent = broadcastEvent(payload);
 
     console.log(
       "[HUB] notify broadcast:",
@@ -1200,6 +1302,7 @@ io.emit("dashboard_update");
   }
 
 });
+
 
 app.get(
   "/orderkuota/current",
@@ -1256,4 +1359,167 @@ response.data.pipe(res);
         console.error(err);
         res.sendStatus(500);
     }
+});
+
+app.post("/webhook/custom", (req, res) => {
+
+  try {
+
+    // ===============================
+    // AUTH
+    // ===============================
+
+    const token = req.headers["x-webhook-token"];
+
+    if (token !== BROADCAST_TOKEN) {
+
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized"
+      });
+
+    }
+
+    // ===============================
+    // PARSE
+    // ===============================
+
+    const donation = customAdapter(req.body);
+
+    // ===============================
+    // VALIDASI
+    // ===============================
+
+    if (
+      !donation.name ||
+      Number(donation.amount_original) <= 0
+    ) {
+
+      return res.status(400).json({
+        success: false,
+        error: "Invalid donation"
+      });
+
+    }
+
+    // ===============================
+    // HANDLE DONATION
+    // ===============================
+
+    handleDonation(donation);
+
+    res.json({
+
+      success: true,
+
+      data: donation
+
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+
+      success: false,
+
+      error: err.message
+
+    });
+
+  }
+
+});
+
+// ===============================
+// WEBHOOK SOCIABUZZ
+// ===============================
+
+app.post("/webhook/sociabuzz", (req, res) => {
+
+  try {
+
+    // ===============================
+    // VALIDASI TOKEN
+    // ===============================
+
+    const token =
+      req.headers["sb-webhook-token"] ||
+      req.headers["x-webhook-token"] ||
+      "";
+
+    if (token !== SOCIABUZZ_TOKEN) {
+
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized"
+      });
+
+    }
+
+    // ===============================
+    // PARSE DONATION
+    // ===============================
+
+    const donation = sociabuzzAdapter(req.body);
+
+    // ===============================
+    // DEBUG (boleh dihapus nanti)
+    // ===============================
+
+    global.lastSociabuzz = {
+      headers: req.headers,
+      body: req.body,
+      donation
+    };
+
+    // ===============================
+    // VALIDASI DONATION
+    // ===============================
+
+    if (
+      !donation.name ||
+      donation.amount_original <= 0
+    ) {
+
+      return res.status(400).json({
+        success: false,
+        error: "Invalid donation"
+      });
+
+    }
+
+    // ===============================
+    // HANDLE DONATION
+    // ===============================
+
+    handleDonation(donation);
+
+    console.log(
+      "[Sociabuzz]",
+      donation.name,
+      donation.amount_original
+    );
+
+    res.json({
+      success: true,
+      data: donation
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+
+  }
+
+});
+
+app.get("/debug/sociabuzz", (req, res) => {
+  res.json(global.lastSociabuzz || {});
 });
