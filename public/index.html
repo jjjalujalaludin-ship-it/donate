@@ -145,6 +145,13 @@ form.onsubmit=async(e)=>{
    message:form.message.value,
    media_url:media.value
  };
+ // Minimum donasi Rp2.000
+if (data.amount < 2000) {
+   alert("Minimum donasi adalah Rp2.000");
+   btn.disabled = false;
+   btn.textContent = "💚 DONATE SEKARANG";
+   return;
+}
  try{
    const res=await fetch("/donate",{
      method:"POST",
