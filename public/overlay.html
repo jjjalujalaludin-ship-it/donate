@@ -235,7 +235,19 @@ function speakGoogle(text) {
 
     box.classList.add("show");
 
-    await speakGoogle(`${data.name} donasi ${format(data.amount_original)} rupiah. Pesan. ${data.message}`);
+    const hasMessage = data.message && data.message.trim().length > 0;
+
+let ttsText;
+
+if (Number(data.amount_original) < 5000 || !hasMessage) {
+  // Donasi < 5rb atau tidak ada pesan
+  ttsText = `${data.name} donasi ${format(data.amount_original)} rupiah.`;
+} else {
+  // Donasi >= 5rb dan ada pesan
+  ttsText = `${data.name} donasi ${format(data.amount_original)} rupiah. Pesan. ${data.message}`;
+}
+
+await speakGoogle(ttsText);
 
     await sleep(3000);
 

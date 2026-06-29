@@ -242,7 +242,13 @@ function speakGoogle(text) {
     box.classList.add("show");
 
     // 🔥 TTS dulu
-    await speakGoogle(`${data.name} donasi ${format(data.amount_original)} rupiah. Pesan. ${data.message}`);
+    const hasMessage = data.message && data.message.trim().length > 0;
+
+const ttsText = hasMessage
+  ? `${data.name} donasi ${format(data.amount_original)} rupiah. Pesan. ${data.message}`
+  : `${data.name} donasi ${format(data.amount_original)} rupiah.`;
+
+await speakGoogle(ttsText);
 
     await sleep(800);
 
