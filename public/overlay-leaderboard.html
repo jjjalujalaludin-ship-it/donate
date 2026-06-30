@@ -107,80 +107,134 @@
 const socket = io();
 
 let currentMap = {};
+let loading = false;
+let pendingReload = false;
 
 function format(num) {
-  return Number(num).toLocaleString("id-ID");
+    return Number(num).toLocaleString("id-ID");
 }
 
 async function load() {
-  const res = await fetch("/leaderboard");
-  const data = await res.json();
 
-  const container = document.getElementById("list");
-
-  const firstPos = {};
-  Object.values(currentMap).forEach(el => {
-    firstPos[el.dataset.name] = el.getBoundingClientRect();
-  });
-
-  const newMap = {};
-
-  data.forEach((d, i) => {
-
-    let el = currentMap[d.name];
-
-    if (!el) {
-      el = document.createElement("div");
-      el.className = "item";
-      el.dataset.name = d.name;
+    if (loading) {
+        pendingReload = true;
+        return;
     }
 
-    const crown = i === 0 ? `<span class="crown">👑</span>` : "";
+    loading = true;
 
-    el.innerHTML = `
-      <div class="left">
-        ${crown}
-        <span class="rank">#${i+1}</span>
-        <span class="name">${d.name}</span>
-      </div>
-      <div class="amount">Rp ${format(d.total)}</div>
-    `;
+    try {
 
-    el.classList.remove("top1","updated");
+        const res = await fetch("/leaderboard");
+        const data = await res.json();
 
-    if (i === 0) el.classList.add("top1");
+        const container = document.getElementById("list");
 
-    container.appendChild(el);
-    newMap[d.name] = el;
-  });
+        // posisi sebelum update
+        const firstPos = {};
 
-  // 🔥 FLIP animation
-  data.forEach(d => {
-    const el = newMap[d.name];
-
-    const first = firstPos[d.name];
-    const last = el.getBoundingClientRect();
-
-    if (first) {
-      const deltaY = first.top - last.top;
-
-      if (deltaY !== 0) {
-        el.style.transform = `translateY(${deltaY}px)`;
-
-        requestAnimationFrame(() => {
-          el.style.transform = "";
-          el.classList.add("updated");
-
-          setTimeout(() => el.classList.remove("updated"), 600);
+        Object.values(currentMap).forEach(el => {
+            firstPos[el.dataset.name] = el.getBoundingClientRect();
         });
-      }
-    }
-  });
 
-  currentMap = newMap;
+        const newMap = {};
+
+        // buat urutan baru
+        for (let i = 0; i < data.length; i++) {
+
+            const d = data[i];
+
+            let el = currentMap[d.name];
+
+            if (!el) {
+                el = document.createElement("div");
+                el.className = "item";
+                el.dataset.name = d.name;
+            }
+
+            const crown = i === 0
+                ? `<span class="crown">👑</span>`
+                : "";
+
+            el.innerHTML = `
+                <div class="left">
+                    ${crown}
+                    <span class="rank">#${i + 1}</span>
+                    <span class="name">${d.name}</span>
+                </div>
+                <div class="amount">Rp ${format(d.total)}</div>
+            `;
+
+            el.classList.remove("top1", "updated");
+
+            if (i === 0) {
+                el.classList.add("top1");
+            }
+
+            newMap[d.name] = el;
+        }
+
+        // hapus item yang sudah tidak ada
+        Object.keys(currentMap).forEach(name => {
+            if (!newMap[name]) {
+                currentMap[name].remove();
+            }
+        });
+
+        // render sesuai urutan
+        for (const d of data) {
+            container.appendChild(newMap[d.name]);
+        }
+
+        // FLIP animation
+        for (const d of data) {
+
+            const el = newMap[d.name];
+
+            const first = firstPos[d.name];
+            const last = el.getBoundingClientRect();
+
+            if (!first) continue;
+
+            const deltaY = first.top - last.top;
+
+            if (deltaY !== 0) {
+
+                el.style.transition = "none";
+                el.style.transform = `translateY(${deltaY}px)`;
+
+                requestAnimationFrame(() => {
+
+                    el.style.transition = "transform .35s ease";
+                    el.style.transform = "";
+
+                    el.classList.add("updated");
+
+                    setTimeout(() => {
+                        el.classList.remove("updated");
+                    }, 600);
+
+                });
+
+            }
+
+        }
+
+        currentMap = newMap;
+
+    } catch (err) {
+        console.error(err);
+    }
+
+    loading = false;
+
+    if (pendingReload) {
+        pendingReload = false;
+        load();
+    }
+
 }
 
-// realtime
 socket.on("dashboard_update", load);
 
 load();
